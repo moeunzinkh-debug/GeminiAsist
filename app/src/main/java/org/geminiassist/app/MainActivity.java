@@ -1187,14 +1187,17 @@ public class MainActivity extends Activity {
             "    }" +
             "})();";
 
-    /** Input candidates in the Gemini web app. */
-    private static final String GEMINI_INPUT_SELECTORS =
-            "'rich-textarea [contenteditable=\"true\"]', " +
-            "div[contenteditable=\"true\"], " +
+    /**
+     * Input candidates in the Gemini web app, as ONE ready-to-use JavaScript string
+     * literal (single selector list, so it can be dropped into querySelectorAll()).
+     */
+    private static final String GEMINI_INPUT_SELECTORS_JS =
+            "\"rich-textarea [contenteditable='true'], " +
+            "div[contenteditable='true'], " +
             "textarea, " +
-            "[aria-label*=\"prompt\" i], " +
-            "[aria-label*=\"Ask Gemini\" i], " +
-            "[role=\"textbox\"]";
+            "[aria-label*='prompt' i], " +
+            "[aria-label*='Ask Gemini' i], " +
+            "[role='textbox']\"";
 
     /**
      * Focuses the Gemini prompt box: immediate attempt, then a 400 ms poll for ~10 s
@@ -1209,7 +1212,7 @@ public class MainActivity extends Activity {
             "    return r.width > 0 && r.height > 0 && el.offsetParent !== null;" +
             "  }" +
             "  function findInput() {" +
-            "    var els = document.querySelectorAll(" + GEMINI_INPUT_SELECTORS + ");" +
+            "    var els = document.querySelectorAll(" + GEMINI_INPUT_SELECTORS_JS + ");" +
             "    for (var i = 0; i < els.length; i++) {" +
             "      if (isVisible(els[i]) && !els[i].disabled && !els[i].readOnly) return els[i];" +
             "    }" +
@@ -1267,7 +1270,7 @@ public class MainActivity extends Activity {
                 "    return r.width > 0 && r.height > 0 && el.offsetParent !== null;" +
                 "  }" +
                 "  function findInput() {" +
-                "    var els = document.querySelectorAll(" + GEMINI_INPUT_SELECTORS + ");" +
+                "    var els = document.querySelectorAll(" + GEMINI_INPUT_SELECTORS_JS + ");" +
                 "    for (var i = 0; i < els.length; i++) {" +
                 "      if (isVisible(els[i]) && !els[i].disabled && !els[i].readOnly) return els[i];" +
                 "    }" +
