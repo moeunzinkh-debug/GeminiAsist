@@ -47,6 +47,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 The GitHub Actions workflow in `.github/workflows/build.yml` builds the same APK on
 every push and pull request and uploads it as an artifact.
 
+Because the injected JavaScript is assembled from Java strings, `javac` cannot catch
+a broken script. `tools/js-selftest/run.sh` extracts the runtime text, syntax-checks it
+with `node --check` and drives it through a mock DOM (`python3` + `node` required). CI
+runs it before every build.
+
 ## Layout of the project
 
 ```
@@ -62,4 +67,5 @@ app/src/main/assets/
   chats_viewer.html                  saved chats + offline fallback page
 tools/icon-source/gemini_assist_icon.svg   original launcher icon source
 tools/make-launcher-icons.sh               regenerates the legacy PNG launcher icons
+tools/js-selftest/                         syntax + behaviour test for the injected JS
 ```
