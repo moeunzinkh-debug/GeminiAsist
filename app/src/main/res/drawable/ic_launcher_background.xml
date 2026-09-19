@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original GeminiAssist artwork: deep indigo tile behind the chat bubble +
+     sparkle mark. Not Google's Gemini logo. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#14182B"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+
+    <!-- Soft diagonal highlight, drawn as two translucent triangles so no gradient
+         shader is required on older platform versions. -->
+    <path
+        android:fillColor="#1E2547"
+        android:pathData="M0,108 L108,0 L108,108 Z" />
+    <path
+        android:fillColor="#262E58"
+        android:pathData="M0,108 L108,54 L108,108 Z" />
+</vector>

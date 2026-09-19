@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Saved chats</title>
+<style>
+    :root {
+        --bg: #131417;
+        --card: #1C1E22;
+        --text: #F2F3F5;
+        --text-dim: #9AA0A6;
+        --accent: #8AB4F8;
+        --border: #2E3238;
+        --ok: #81C995;
+    }
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+    }
+    body { background: var(--bg); color: var(--text); padding: 16px 14px 28px; min-height: 100vh; }
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    h1 { font-size: 19px; font-weight: 700; }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+        background: var(--card);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 9px 15px;
+        font-size: 14px;
+    }
+    .btn-accent { background: var(--accent); border-color: var(--accent); color: #0B1220; font-weight: 600; }
+    .offline {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+    .offline h2 { font-size: 15px; margin-bottom: 6px; }
+    .offline p { font-size: 13px; color: var(--text-dim); line-height: 1.45; margin-bottom: 10px; }
+    .chat {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 13px 14px;
+        margin-bottom: 10px;
+    }
+    .chat-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .chat-date { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
+    .chat-body {
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: #DDE1E6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 220px;
+        overflow: auto;
+    }
+    .chat-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .empty { color: var(--text-dim); font-size: 14px; text-align: center; padding: 28px 10px; line-height: 1.5; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .badge { font-size: 11px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>💬 Saved chats</h1>
+    <div class="actions">
+        <button class="btn" type="button" onclick="closeViewer()">Close</button>
+    </div>
+</header>
+
+<div class="offline">
+    <h2>Offline</h2>
+    <p id="offlineText">Gemini could not be reached. Your downloaded chat exports are still readable below.</p>
+    <button class="btn btn-accent" type="button" onclick="reloadGemini()">Reload Gemini</button>
+</div>
+
+<div id="chatList"></div>
+<div class="empty" id="emptyState">No saved chats yet. Download a chat export in Gemini and it will appear here, readable offline.</div>
+
+<script>
+    function bridge() {
+        if (typeof AndroidChatsViewer !== 'undefined') return AndroidChatsViewer;
+        if (typeof Android !== 'undefined') return Android;
+        return null;
+    }
+
+    function refresh() {
+        var b = bridge();
+        var list = document.getElementById('chatList');
+        var empty = document.getElementById('emptyState');
+        list.innerHTML = '';
+        if (!b || !b.getChatsJson) {
+            empty.textContent = 'Saved chats are not available in this window.';
+            empty.style.display = 'block';
+            return;
+        }
+        var data;
+        try {
+            data = JSON.parse(b.getChatsJson() || '{}');
+        } catch (e) {
+            data = {};
+        }
+        var chats = (data && data.chats) ? data.chats : [];
+        if (!chats.length) {
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        for (var i = 0; i < chats.length; i++) {
+            list.appendChild(renderChat(chats[i], i));
+        }
+    }
+
+    function renderChat(chat, index) {
+        var card = document.createElement('div');
+        card.className = 'chat';
+
+        var title = document.createElement('div');
+        title.className = 'chat-title';
+        title.textContent = chat.title || ('Gemini chat ' + (index + 1));
+        card.appendChild(title);
+
+        var date = document.createElement('div');
+        date.className = 'chat-date';
+        date.textContent = chat.date || '';
+        card.appendChild(date);
+
+        var body = document.createElement('div');
+        body.className = 'chat-body';
+        var content = chat.content || '';
+        var truncated = false;
+        if (content.length > 1400) {
+            content = content.substring(0, 1400);
+            truncated = true;
+        }
+        body.textContent = content;
+        card.appendChild(body);
+
+        var actions = document.createElement('div');
+        actions.className = 'chat-actions';
+
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'btn';
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', function () {
+            var b = bridge();
+            if (b && b.copyToClipboard) {
+                b.copyToClipboard(chat.content || '');
+            }
+        });
+        actions.appendChild(copyBtn);
+
+        if (truncated) {
+            var expandBtn = document.createElement('button');
+            expandBtn.className = 'btn';
+            expandBtn.type = 'button';
+            expandBtn.textContent = 'Show all';
+            expandBtn.addEventListener('click', function () {
+                body.textContent = chat.content || '';
+                expandBtn.remove();
+            });
+            actions.appendChild(expandBtn);
+        }
+
+        card.appendChild(actions);
+        return card;
+    }
+
+    function closeViewer() {
+        var b = bridge();
+        if (b && b.dismissViewer) {
+            b.dismissViewer();
+        }
+    }
+
+    function reloadGemini() {
+        var b = bridge();
+        if (b && b.reloadGemini) {
+            b.reloadGemini();
+        }
+        document.getElementById('offlineText').textContent = 'Reloading Gemini…';
+    }
+
+    document.addEventListener('DOMContentLoaded', refresh);
+    window.addEventListener('focus', refresh);
+</script>
+</body>
+</html>
