@@ -26,6 +26,11 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" || true
 
+      # The injected JavaScript is assembled from Java string concatenations, so
+      # javac cannot catch a broken script: syntax- and behaviour-check it first.
+      - name: Verify injected JavaScript
+        run: tools/js-selftest/run.sh
+
       - name: Build debug APK
         run: |
           chmod +x gradlew
