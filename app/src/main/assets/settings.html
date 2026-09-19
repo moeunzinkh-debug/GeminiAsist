@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>⚙ Patches</title>
+<style>
+    :root {
+        --bg: #131417;
+        --card: #1C1E22;
+        --card-2: #23262B;
+        --text: #F2F3F5;
+        --text-dim: #9AA0A6;
+        --accent: #8AB4F8;
+        --border: #2E3238;
+        --danger: #EF5350;
+    }
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-tap-highlight-color: transparent;
+    }
+    body {
+        background: var(--bg);
+        color: var(--text);
+        padding: 18px 16px 28px;
+        min-height: 100vh;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    h1 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+    }
+    .close-btn {
+        background: var(--card-2);
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
+    }
+    h2 {
+        font-size: 12px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 10px;
+        font-weight: 700;
+    }
+    .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .row:last-child { border-bottom: none; }
+    .row-text { flex: 1; }
+    .row-title { font-size: 15px; }
+    .row-hint { font-size: 12px; color: var(--text-dim); margin-top: 3px; line-height: 1.35; }
+    .switch { position: relative; width: 48px; height: 28px; flex: 0 0 auto; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+        position: absolute;
+        inset: 0;
+        background: #3C4043;
+        border-radius: 999px;
+        transition: background 0.2s ease;
+    }
+    .slider::before {
+        content: "";
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        left: 3px;
+        top: 3px;
+        background: #FFFFFF;
+        border-radius: 50%;
+        transition: transform 0.2s ease;
+    }
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .sizes { display: flex; gap: 8px; flex-wrap: wrap; }
+    .size-btn {
+        flex: 1 1 0;
+        min-width: 68px;
+        background: var(--card-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 6px;
+        font-size: 13px;
+        line-height: 1.3;
+    }
+    .size-btn small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+    .size-btn.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: rgba(138, 180, 248, 0.12);
+    }
+    textarea {
+        width: 100%;
+        min-height: 76px;
+        background: #16181C;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 11px 12px;
+        font-size: 14px;
+        resize: vertical;
+    }
+    .field-label { font-size: 15px; margin-bottom: 4px; }
+    .field { padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .field:last-child { border-bottom: none; }
+    .hint { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.35; }
+    .btn {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 13px;
+        font-size: 15px;
+        font-weight: 600;
+        background: var(--card-2);
+        color: var(--text);
+    }
+    .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #0B1220;
+        margin-top: 6px;
+    }
+    footer { display: flex; gap: 10px; margin-top: 4px; }
+    footer .btn { width: auto; flex: 1; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>⚙ Patches</h1>
+    <button class="close-btn" type="button" onclick="closePatches()">Close</button>
+</header>
+
+<section>
+    <h2>General</h2>
+    <div class="row">
+        <div class="row-text">
+            <div class="row-title">Assistant opens drawer</div>
+            <div class="row-hint">Assistant triggers open a 92% bottom card instead of the full screen.</div>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="use_drawer_assistant">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="row">
+        <div class="row-text">
+            <div class="row-title">Shares open drawer</div>
+            <div class="row-hint">Shared text, images and PDFs open in the bottom card.</div>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="use_drawer_shared">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="row">
+        <div class="row-text">
+            <div class="row-title">Focus prompt box on launch</div>
+            <div class="row-hint">Opens the keyboard as soon as Gemini has loaded.</div>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="auto_focus_keyboard">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="row">
+        <div class="row-text">
+            <div class="row-title">Assistant focuses prompt</div>
+            <div class="row-hint">The assistant trigger puts the cursor straight into the prompt box.</div>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="trigger_voice_assistant">
+            <span class="slider"></span>
+        </label>
+    </div>
+</section>
+
+<section>
+    <h2>Display</h2>
+    <div class="sizes">
+        <button class="size-btn" type="button" data-zoom="85">Small<small>85%</small></button>
+        <button class="size-btn" type="button" data-zoom="100">Normal<small>100%</small></button>
+        <button class="size-btn" type="button" data-zoom="115">Large<small>115%</small></button>
+        <button class="size-btn" type="button" data-zoom="130">XL<small>130%</small></button>
+    </div>
+    <div class="hint">Applies immediately. Pinch-to-zoom inside Gemini changes the same value (50–300%).</div>
+</section>
+
+<section>
+    <h2>Prompts suffix</h2>
+    <div class="field">
+        <div class="field-label">Text added to shared text</div>
+        <textarea id="ask_gemini_suffix" placeholder="e.g. Answer in Khmer, keep it short."></textarea>
+    </div>
+    <div class="field">
+        <div class="field-label">Prompt added to shared files</div>
+        <textarea id="shared_doc_suffix" placeholder="e.g. Summarise this document."></textarea>
+        <div class="hint">Gemini has no direct "attach this file" link, so the file is staged: tap
+            the + / attach button in Gemini and the shared file is handed over automatically.</div>
+    </div>
+</section>
+
+<section>
+    <h2>Data</h2>
+    <div class="row">
+        <div class="row-text">
+            <div class="row-title">Saved chats</div>
+            <div class="row-hint">Downloaded chat exports (.md) stay readable offline.</div>
+        </div>
+    </div>
+    <button class="btn" type="button" onclick="openChatsViewer()">View saved chats</button>
+</section>
+
+<footer>
+    <button class="btn" type="button" onclick="closePatches()">Close</button>
+    <button class="btn btn-primary" type="button" onclick="savePatches()">Save</button>
+</footer>
+
+<script>
+    var currentZoom = 100;
+
+    function bridge() {
+        return (typeof AndroidSettings !== 'undefined') ? AndroidSettings : null;
+    }
+
+    function setZoom(zoom, notifyNative) {
+        var value = parseInt(zoom, 10);
+        if (!value || value < 50) value = 100;
+        if (value > 300) value = 300;
+        currentZoom = value;
+        renderZoom();
+        var b = bridge();
+        if (notifyNative && b && b.setTextZoom) {
+            b.setTextZoom(value);
+        }
+    }
+
+    function renderZoom() {
+        var buttons = document.querySelectorAll('.size-btn');
+        for (var i = 0; i < buttons.length; i++) {
+            var buttonZoom = parseInt(buttons[i].getAttribute('data-zoom'), 10);
+            // The nearest preset is highlighted, so a pinch-to-zoom value still maps to a chip.
+            var active = Math.abs(buttonZoom - currentZoom) <= 6;
+            buttons[i].className = active ? 'size-btn active' : 'size-btn';
+        }
+    }
+
+    function collectSettings() {
+        return {
+            use_drawer_assistant: document.getElementById('use_drawer_assistant').checked,
+            use_drawer_shared: document.getElementById('use_drawer_shared').checked,
+            auto_focus_keyboard: document.getElementById('auto_focus_keyboard').checked,
+            trigger_voice_assistant: document.getElementById('trigger_voice_assistant').checked,
+            text_zoom: currentZoom,
+            ask_gemini_suffix: document.getElementById('ask_gemini_suffix').value,
+            shared_doc_suffix: document.getElementById('shared_doc_suffix').value
+        };
+    }
+
+    function savePatches() {
+        var b = bridge();
+        if (!b || !b.saveSettings) return;
+        b.saveSettings(JSON.stringify(collectSettings()));
+    }
+
+    function closePatches() {
+        var b = bridge();
+        if (b && b.dismissSettings) {
+            b.dismissSettings();
+        }
+    }
+
+    function openChatsViewer() {
+        var b = bridge();
+        if (b && b.openChatsViewer) {
+            b.openChatsViewer();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var b = bridge();
+        if (b && b.getSettingsJson) {
+            try {
+                var settings = JSON.parse(b.getSettingsJson());
+                document.getElementById('use_drawer_assistant').checked = settings.use_drawer_assistant !== false;
+                document.getElementById('use_drawer_shared').checked = settings.use_drawer_shared !== false;
+                document.getElementById('auto_focus_keyboard').checked = settings.auto_focus_keyboard !== false;
+                document.getElementById('trigger_voice_assistant').checked = settings.trigger_voice_assistant !== false;
+                document.getElementById('ask_gemini_suffix').value = settings.ask_gemini_suffix || '';
+                document.getElementById('shared_doc_suffix').value = settings.shared_doc_suffix || '';
+                setZoom(settings.text_zoom || 100, false);
+            } catch (e) {
+                console.error('Could not read patches', e);
+            }
+        }
+        renderZoom();
+
+        var buttons = document.querySelectorAll('.size-btn');
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].addEventListener('click', function () {
+                // Applies instantly: the WebView text zoom changes while the page is open.
+                setZoom(this.getAttribute('data-zoom'), true);
+            });
+        }
+
+        // Keep textareas above the keyboard.
+        var areas = document.querySelectorAll('textarea');
+        for (var a = 0; a < areas.length; a++) {
+            areas[a].addEventListener('focus', function () {
+                var el = this;
+                setTimeout(function () {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 250);
+            });
+        }
+    });
+</script>
+</body>
+</html>

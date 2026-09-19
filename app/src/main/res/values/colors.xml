@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar (always part of the layout flow, never an overlay) -->
+    <color name="topBarBackground">#1A1B1E</color>
+    <color name="topBarText">#F5F6F7</color>
+    <color name="accent">#8AB4F8</color>
+
+    <!-- Bottom drawer drag handle -->
+    <color name="dragHandle">#D1D1D6</color>
+
+    <!-- Attention banner -->
+    <color name="bannerBackground">#D32F2F</color>
+</resources>

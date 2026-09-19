@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">GeminiAssist</string>
+
+    <!-- Top bar / drawer header entry point to the Patches (settings) page.
+         This is a normal in-flow button - the app has no floating overlays. -->
+    <string name="patches">Patches</string>
+
+    <!-- Shared-file banner -->
+    <string name="attach_shared_file">Tap + / attach in Gemini to add the shared file</string>
+
+    <!-- Downloads -->
+    <string name="download">Download started:</string>
+    <string name="url_copied">Copied to clipboard</string>
+    <string name="download_permission_denied">Permission denied. Cannot download file.</string>
+    <string name="camera_permission_denied">Camera permission denied.</string>
+
+    <!-- Ask Gemini -->
+    <string name="ask_gemini">Ask Gemini</string>
+
+    <!-- Select file source -->
+    <string name="select_option">Select Option</string>
+    <string name="select_camera">Camera</string>
+    <string name="select_file_manager">File Manager</string>
+
+    <!-- Safe mode -->
+    <string name="safe_mode_toast">Script crash caught! Activating Safe Mode fallback&#8230;</string>
+</resources>
