@@ -3,6 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,17 +15,45 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # The ubuntu runner image already ships the Android SDK (ANDROID_HOME is set
+      # and the licences are pre-accepted), so the job installs the packages it
+      # needs with that SDK's own sdkmanager.
+      #
+      # Do NOT reintroduce android-actions/setup-android@v3 here: its `packages`
+      # default is `tools platform-tools`, and the legacy `tools` package was
+      # removed from Google's SDK repository. sdkmanager then exits 1
+      # ("Failed to find package 'tools'") and the job dies before Gradle ever
+      # runs. (Run 36585480375 failed exactly there.)
       - name: Install Android SDK 34
-        run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+        run: |
+          if [ -z "${ANDROID_HOME:-}" ]; then
+            echo "ANDROID_HOME is not set on this runner." >&2
+            exit 1
+          fi
+
+          # sdkmanager is normally on PATH; fall back to the SDK directory in case
+          # the runner image changes how it is exposed.
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found at '$SDKMANAGER'." >&2
+            exit 1
+          fi
+          echo "Using $SDKMANAGER"
+
+          # Idempotent: just writes the licence hashes into $ANDROID_HOME/licenses.
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+
+          "$SDKMANAGER" 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0'
       # All four secrets are optional. Without them the release APK is UNSIGNED.
       - name: Prepare optional release signing
         env:
@@ -44,13 +74,13 @@ jobs:
       - name: Build debug and release APKs
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gemini-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
       - name: Upload release APK (unsigned unless signing secrets are set)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gemini-release-apk
           path: app/build/outputs/apk/release/*.apk
