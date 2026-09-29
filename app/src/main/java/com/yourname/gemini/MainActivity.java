@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
             "  try{\n" +
             "    if(window.__geminiFix) return;\n" +
             "    window.__geminiFix=true;\n" +
-            "    var css='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;}';\n" +
+            "    var css='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;} .gax-hscroll,.gax-hscroll *{max-width:none!important;} .gax-round{zoom:.8;}';\n" +
             "    var vpWant='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';\n" +
             "    function fixLayout(){\n" +
             "      try{\n" +
@@ -115,6 +115,31 @@ public class MainActivity extends AppCompatActivity {
             "        }\n" +
             "      }catch(e){}\n" +
             "    }\n" +
+            "    function fixHScroll(){\n" +
+            "      try{\n" +
+            "        var all=document.querySelectorAll('*');\n" +
+            "        for(var i=0;i<all.length;i++){\n" +
+            "          var el=all[i];\n" +
+            "          if(el.__gaxH){continue;}\n" +
+            "          var ovx='';\n" +
+            "          try{ovx=getComputedStyle(el).overflowX;}catch(e2){}\n" +
+            "          if(ovx==='auto'||ovx==='scroll'){\n" +
+            "            el.__gaxH=1;\n" +
+            "            el.classList.add('gax-hscroll');\n" +
+            "            el.style.setProperty('-webkit-overflow-scrolling','touch');\n" +
+            "            try{\n" +
+            "              var probe=el.querySelector('button')||el.firstElementChild;\n" +
+            "              if(probe){\n" +
+            "                var t=probe.firstElementChild||probe;\n" +
+            "                var br=getComputedStyle(t).borderRadius||'';\n" +
+            "                var pxx=parseFloat(br)||0;\n" +
+            "                if(br.indexOf('%')>-1||pxx>=24){el.classList.add('gax-round');}\n" +
+            "              }\n" +
+            "            }catch(e3){}\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }catch(e){}\n" +
+            "    }\n" +
             "    function canScrollUp(){\n" +
             "      try{\n" +
             "        if((window.scrollY||document.documentElement.scrollTop||0)>1){return true;}\n" +
@@ -139,12 +164,12 @@ public class MainActivity extends AppCompatActivity {
             "      };\n" +
             "      if(window.requestAnimationFrame){window.requestAnimationFrame(run);}else{setTimeout(run,32);}\n" +
             "    }\n" +
-            "    fixLayout();collectScrollers();report();\n" +
+            "    fixLayout();fixHScroll();collectScrollers();report();\n" +
             "    try{new MutationObserver(fixLayout).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}\n" +
             "    window.addEventListener('scroll',report,true);\n" +
-            "    window.addEventListener('resize',function(){fixLayout();collectScrollers();report();});\n" +
-            "    window.addEventListener('load',function(){collectScrollers();report();});\n" +
-            "    setInterval(function(){fixLayout();collectScrollers();report();},2000);\n" +
+            "    window.addEventListener('resize',function(){fixLayout();fixHScroll();collectScrollers();report();});\n" +
+            "    window.addEventListener('load',function(){fixHScroll();collectScrollers();report();});\n" +
+            "    setInterval(function(){fixLayout();fixHScroll();collectScrollers();report();},2000);\n" +
             "  }catch(e){}\n" +
             "})();";
 
