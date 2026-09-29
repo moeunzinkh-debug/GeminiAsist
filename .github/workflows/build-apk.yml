@@ -73,17 +73,70 @@ jobs:
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug
       - name: Build debug and release APKs
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
-      - name: Upload debug APK
+      # A phone only installs an APK whose signature it can read, so print exactly
+      # what each file is signed with. The report also lands in the run summary
+      # and inside the artifact, so it can be checked without the log.
+      - name: Report APK signing
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          REPORT=apk-signing-report.txt
+          : > "$REPORT"
+          {
+            echo "## APK signing report"
+            echo ""
+            echo "keystore: \`$(ls -l "$HOME/.android/debug.keystore" 2>/dev/null || echo 'none (fresh key generated for this run)')\`"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for apk in app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk; do
+            [ -f "$apk" ] || continue
+            name="$(basename "$apk")"
+            if "$APKSIGNER" verify --print-certs "$apk" > /tmp/certs.txt 2>&1; then
+              echo "- ✅ \`$name\` — signed, the phone will install it" | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ⛔ \`$name\` — UNSIGNED: Android refuses to install this file" | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            cat /tmp/certs.txt >> "$REPORT"
+            sed 's/^/    /' /tmp/certs.txt
+          done
+
+          # The debug key is the one that decides whether a new build can upgrade
+          # an already installed app (Android requires the same key).
+          if [ -f "$HOME/.android/debug.keystore" ]; then
+            {
+              echo ""
+              echo "debug keystore fingerprint:"
+              keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+                -storepass android -alias androiddebugkey 2>/dev/null \
+                | grep -iE "SHA256:|Valid from:" || true
+            } | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # Same bytes, honest file names: the release APK keeps an UNSIGNED marker so
+      # nobody tries to sideload it by mistake.
+      - name: Name the APKs after what they are
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/*.apk dist/gemini-debug-installable.apk
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/gemini-release-UNSIGNED-needs-signing.apk
+          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk dist/gemini-release-signed-installable.apk
+          fi
+          cp apk-signing-report.txt dist/
+          ls -lh dist
+      - name: Upload debug APK (signed, installable)
         uses: actions/upload-artifact@v7
         with:
           name: gemini-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: dist/gemini-debug-*.apk
           if-no-files-found: error
       - name: Upload release APK (unsigned unless signing secrets are set)
         uses: actions/upload-artifact@v7
         with:
           name: gemini-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: |
+            dist/gemini-release-*.apk
+            dist/apk-signing-report.txt
           if-no-files-found: error
       - name: Remove signing key
         if: always()
