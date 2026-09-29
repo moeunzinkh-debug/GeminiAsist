@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gemini</string>
+    <string name="choose_file">Choose a file or photo</string>
+    <string name="no_browser">No browser is available to open this link.</string>
+    <string name="no_file_picker">No file picker is available. Please install a file manager and retry.</string>
+    <string name="media_permission_denied">Camera or microphone access was denied. You can enable it in Android Settings → Apps → Gemini → Permissions.</string>
+    <string name="connection_error">Unable to load Gemini</string>
+    <string name="connection_error_detail">Check your internet connection, then try again.</string>
+    <string name="retry">Try again</string>
+    <string name="open_browser">Open in browser</string>
+</resources>

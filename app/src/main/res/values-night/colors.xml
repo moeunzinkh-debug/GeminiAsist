@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gemini_background">#121821</color>
+    <color name="gemini_on_background">#EEF3FF</color>
+    <color name="gemini_accent">#9BB5FF</color>
+    <color name="gemini_accent_dark">#7294EE</color>
+</resources>

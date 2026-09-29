@@ -1,0 +1,10 @@
+.gradle/
+.idea/
+*.iml
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+*.jks
+*.keystore
+# local.properties is intentionally checked in as a commented template.

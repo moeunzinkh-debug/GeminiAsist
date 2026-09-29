@@ -1,0 +1,60 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK 34
+        run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+      # All four secrets are optional. Without them the release APK is UNSIGNED.
+      - name: Prepare optional release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.GEMINI_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.GEMINI_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.GEMINI_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.GEMINI_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gemini-release.jks"
+            echo "GEMINI_KEYSTORE_PATH=$RUNNER_TEMP/gemini-release.jks" >> "$GITHUB_ENV"
+            echo "GEMINI_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "GEMINI_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "GEMINI_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          fi
+      - name: Test and lint
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug
+      - name: Build debug and release APKs
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - name: Upload release APK (unsigned unless signing secrets are set)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gemini-release.jks"
