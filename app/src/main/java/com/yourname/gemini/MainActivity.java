@@ -68,17 +68,27 @@ public class MainActivity extends AppCompatActivity {
     // Fixed: was 60% causing text cut to left and scroll miscalc
     private static final int WEB_TEXT_ZOOM = 100;
 
-    // JS fix for bug 1: text disappears to left, bug 2: scroll up cannot scroll down
+    // JS fix for bug 1: text disappears to left, bug 2: scroll up cannot scroll down.
+    // IMPORTANT: only *page-level* locks here. Earlier versions also forced
+    // `* { max-width:100% }`, `overflow-x:hidden` on main/[role=main] and 12px
+    // body padding. That fought Gemini's own UI: the "+" popup and its row of
+    // round buttons (Files / Camera / Drive ...) lost their native size
+    // (buttons became huge) and their horizontal overflow was clipped, so the
+    // row could not be dragged left and some buttons were cut off. Those rules
+    // are removed; native layout/scroll of the site now works like in Chrome.
     private static final String LAYOUT_FIX_JS =
             "(function(){\n" +
             "  try{\n" +
             "    if(window.__geminiFix) return;\n" +
             "    window.__geminiFix=true;\n" +
+            "    var css='html,body{overflow-x:hidden!important;max-width:100%!important;}'\n" +
+            "           +'body{overscroll-behavior-y:contain!important;}'\n" +
+            "           +'img,video{max-width:100%!important;height:auto!important;}';\n" +
             "    function fix(){\n" +
             "      try{\n" +
             "        var el=document.getElementById('gemini-fix');\n" +
-            "        if(!el){el=document.createElement('style');el.id='gemini-fix';(document.head||document.documentElement).appendChild(el);}\n" +
-            "        el.textContent='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;}';\n" +
+            "        if(!el){el=document.createElement('style');el.id='gemini-fix';(document.head||document.documentElement).appendChild(el);el.__geminiCss=null;}\n" +
+            "        if(el.__geminiCss!==css){el.textContent=css;el.__geminiCss=css;}\n" +
             "        var vp=document.querySelector('meta[name=viewport]');\n" +
             "        if(!vp){vp=document.createElement('meta');vp.name='viewport';(document.head||document.documentElement).appendChild(vp);}\n" +
             "        vp.setAttribute('content','width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');\n" +
