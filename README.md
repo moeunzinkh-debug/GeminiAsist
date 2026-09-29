@@ -127,9 +127,9 @@ Gradle ប្រើ environment variables ទាំង 4 ខាងក្រោ�
 
 ## GitHub Actions
 
-`.github/workflows/build-apk.yml` ដំណើរការពេល **push ទៅ `main`** និងអាច **Run workflow** ដោយដៃ (`workflow_dispatch`) ពេល workflow មាននៅ default branch។ វា៖
+`.github/workflows/build-apk.yml` ដំណើរការពេល **push ទៅ `main`**, ពេលបើក **pull request ទៅ `main`**, និងអាច **Run workflow** ដោយដៃ (`workflow_dispatch`)។ វា៖
 
-1. Checkout → JDK 17 → Android SDK 34 / Build-Tools 34.0.0។
+1. Checkout → JDK 17 → ដំឡើង Android SDK 34 / Build-Tools 34.0.0 ដោយ `sdkmanager` ដែលមានស្រាប់លើ runner image (ANDROID_HOME ត្រូវបានកំណត់រួច)។ មិនប្រើ `android-actions/setup-android@v3` ទេ ព្រោះ default របស់វាគឺ `packages: tools platform-tools` ហើយ package `tools` ត្រូវបាន Google ដកចេញពី SDK repository — វាធ្វើឱ្យ `sdkmanager` exit 1 និង job ខូចមុនពេល Gradle ដំណើរការ (run 36585480375)។
 2. រត់ unit tests និង Android Lint។
 3. Build debug និង release APK។
 4. Upload artifacts `gemini-debug-apk` និង `gemini-release-apk`។
@@ -157,7 +157,9 @@ App មិន backup ទិន្នន័យគណនីទេ។ Cookies/local
 
 បានពិនិត្យក្នុង workspace៖ syntax Java ដោយ parser, XML, YAML workflow, resource references និង SHA-256 របស់ Gradle wrapper ទល់នឹង upstream។
 
-**មិនទាន់អាចបញ្ជាក់ថា APK build ជោគជ័យក្នុង workspace នេះទេ**៖ មិនមាន Android SDK និងការទាញ Gradle/Android SDK ត្រូវបានរារាំងដោយ TLS/network។ ការផ្ទៀងផ្ទាត់ syntax មិនជំនួស Android compilation ឬការសាកល្បងលើឧបករណ៍ពិតទេ។ Unit tests និង Lint ត្រូវបានកំណត់ឱ្យរត់ក្នុង workflow និងតាម commands ខាងលើ។
+Build APK ជោគជ័យលើ GitHub Actions រួចហើយ (run 36586666184, commit `4e4ccc1`)៖ steps ទាំងអស់រួមទាំង unit tests, Lint, assembleDebug និង assembleRelease ជោគជ័យ ហើយ artifacts `gemini-debug-apk` (~2.8 MB) និង `gemini-release-apk` (~2.2 MB, unsigned ពេលគ្មាន signing secrets) ត្រូវបាន upload។
+
+**ផ្នែកដែលមិនអាចផ្ទៀងផ្ទាត់ក្នុង workspace បានទេ**៖ workspace នេះគ្មាន Android SDK និងគ្មាន network egress ទៅ dl.google.com/services.gradle.org ដូច្នេះការបញ្ជាក់ចុងក្រោយគឺមកពី CI។ ការសាកល្បងលើឧបករណ៍ពិត (install APK, camera/mic upload) នៅតែជាជំហានរបស់អ្នកប្រើ។
 
 សូមសាកល្បងលើ API 24 និង API 34៖
 
