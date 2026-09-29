@@ -65,12 +65,32 @@ public class MainActivity extends AppCompatActivity {
     private PermissionRequest pendingWebPermission;
     private Uri cameraOutputUri;
     private File cameraOutputFile;
-    // Page text size in percent of the system default (WebView default is 100).
-    // Gemini's web layout rendered far too large on phones, so the app pins it to 60%.
-    // This is the only value to change for bigger/smaller text.
-    private static final int WEB_TEXT_ZOOM = 60;
+    // Fixed: was 60% causing text cut to left and scroll miscalc
+    private static final int WEB_TEXT_ZOOM = 100;
 
-    // Keep successful capture files until the WebView is destroyed: it may still read them.
+    // JS fix for bug 1: text disappears to left, bug 2: scroll up cannot scroll down
+    private static final String LAYOUT_FIX_JS =
+            "(function(){\n" +
+            "  try{\n" +
+            "    if(window.__geminiFix) return;\n" +
+            "    window.__geminiFix=true;\n" +
+            "    function fix(){\n" +
+            "      try{\n" +
+            "        var el=document.getElementById('gemini-fix');\n" +
+            "        if(!el){el=document.createElement('style');el.id='gemini-fix';(document.head||document.documentElement).appendChild(el);}\n" +
+            "        el.textContent='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;}';\n" +
+            "        var vp=document.querySelector('meta[name=viewport]');\n" +
+            "        if(!vp){vp=document.createElement('meta');vp.name='viewport';(document.head||document.documentElement).appendChild(vp);}\n" +
+            "        vp.setAttribute('content','width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');\n" +
+            "      }catch(e){}\n" +
+            "    }\n" +
+            "    fix();\n" +
+            "    try{new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}\n" +
+            "    setInterval(fix,1500);\n" +
+            "    window.addEventListener('resize',fix);\n" +
+            "  }catch(e){}\n" +
+            "})();";
+
     private final List<File> capturedFiles = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable revealPage = () -> loadingSplash.setVisibility(View.GONE);
@@ -108,8 +128,16 @@ public class MainActivity extends AppCompatActivity {
         errorPanel = findViewById(R.id.error_panel);
         configureWebView();
         swipeRefresh.setColorSchemeResources(R.color.gemini_accent);
-        // The direct child is a FrameLayout, so query the WebView, not that container.
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView.canScrollVertically(-1));
+        swipeRefresh.setDistanceToTriggerSync(350);
+        // FIX for bug 2: scroll stuck when drag up then cannot drag down
+        // Only allow pull-to-refresh when truly at top
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> {
+            return webView.getScrollY() > 0 || webView.canScrollVertically(-1);
+        });
+        webView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            // Disable SwipeRefresh when not at top to prevent scroll conflict
+            swipeRefresh.setEnabled(scrollY == 0);
+        });
         swipeRefresh.setOnRefreshListener(this::reloadPage);
         findViewById(R.id.retry_button).setOnClickListener(view -> reloadPage());
         findViewById(R.id.browser_button).setOnClickListener(view -> openBrowser(UrlPolicy.HOME_URL));
@@ -121,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Bound the in-app splash: a slow connection must not trap the user behind it.
         handler.postDelayed(revealPage, 15000);
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
             webView.loadUrl(UrlPolicy.HOME_URL);
@@ -130,37 +157,42 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @SuppressWarnings("deprecation") // Legacy settings explicitly requested for API 24 support.
+    @SuppressWarnings("deprecation")
     private void configureWebView() {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setLoadWithOverviewMode(true);
+        // FIX for bug 1: was true causing overview zoom out and left cut
+        settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(true);
-        // Shrink the page text; the layout still fits the screen width.
         settings.setTextZoom(WEB_TEXT_ZOOM);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
-        // Do not permit local files to access arbitrary origins or other local files.
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        // target=_blank links use the main frame, then our URL policy routes them.
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.setSafeBrowsingEnabled(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             settings.setAlgorithmicDarkeningAllowed(true);
         }
+        // FIX for scroll bug
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setVerticalScrollBarEnabled(true);
+        webView.setHorizontalScrollBarEnabled(false);
+        webView.setScrollbarFadingEnabled(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            webView.setNestedScrollingEnabled(true);
+        }
         webView.setBackgroundColor(ContextCompat.getColor(this, R.color.gemini_background));
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        // No UA spoofing, JavaScript bridge, SSL bypass, or release WebView debugging.
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -168,15 +200,13 @@ public class MainActivity extends AppCompatActivity {
                 String url = request.getUrl().toString();
                 if (UrlPolicy.isInternal(url)) return false;
                 if (UrlPolicy.isWebLink(url)) openBrowser(url);
-                return true; // Reject file:, intent:, data:, javascript:, etc.
+                return true;
             }
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 cancelWebPermission();
                 cancelFileSelection();
-                // Fallback: this runs after a request starts and is NOT a network firewall.
-                // Do not replay unexpected POST navigations as a GET in another browser.
                 if (!UrlPolicy.isInternal(url)) {
                     view.stopLoading();
                     showPageError();
@@ -190,10 +220,14 @@ public class MainActivity extends AppCompatActivity {
 
             @Override public void onPageCommitVisible(WebView view, String url) {
                 revealLoadingPage();
+                injectLayoutFix();
             }
 
             @Override public void onPageFinished(WebView view, String url) {
                 finishLoading();
+                injectLayoutFix();
+                handler.postDelayed(() -> injectLayoutFix(), 500);
+                handler.postDelayed(() -> injectLayoutFix(), 1500);
             }
 
             @Override
@@ -203,13 +237,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
-                // Leave sign-in error pages visible so Google's explanation isn't hidden.
                 if (request.isForMainFrame() && response.getStatusCode() >= 500) showPageError();
             }
             @Override
             public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler sslHandler,
                                            android.net.http.SslError error) {
-                sslHandler.cancel(); // Never bypass a certificate failure.
+                sslHandler.cancel();
                 if (java.util.Objects.equals(error.getUrl(), view.getUrl())) showPageError();
             }
         });
@@ -218,7 +251,13 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onProgressChanged(WebView view, int progress) {
                 progressBar.setProgress(progress);
                 progressBar.setVisibility(progress < 100 && !pageFailed ? View.VISIBLE : View.GONE);
-                if (progress == 100) finishLoading();
+                if (progress == 100) {
+                    finishLoading();
+                    injectLayoutFix();
+                }
+                if (progress > 30 && progress < 90) {
+                    injectLayoutFix();
+                }
             }
 
             @Override
@@ -243,6 +282,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void injectLayoutFix() {
+        if (webView == null || destroyed) return;
+        try {
+            webView.evaluateJavascript(LAYOUT_FIX_JS, null);
+        } catch (Exception ignored) {}
+    }
+
     private void openBrowser(String url) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE));
@@ -261,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
         for (String resource : request.getResources()) {
             String permission = androidPermissionFor(resource);
             if (permission == null) {
-                request.deny(); // Never grant newly introduced/unknown WebView resources.
+                request.deny();
                 return;
             }
             if (!hasPermission(permission) && !missing.contains(permission)) missing.add(permission);
@@ -355,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
                     chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{camera});
                 } else discardPendingCapture();
             } catch (IOException | IllegalArgumentException | SecurityException ignored) {
-                discardPendingCapture(); // File selection remains available without camera support.
+                discardPendingCapture();
             }
         }
         try {
@@ -399,7 +445,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void addSelectedUri(List<Uri> selected, Uri uri) {
-        // Never pass arbitrary file:// paths or another private file from our provider to the web.
         if (uri == null || !"content".equalsIgnoreCase(uri.getScheme())) return;
         if ((getPackageName() + ".fileprovider").equals(uri.getAuthority()) && !uri.equals(cameraOutputUri)) return;
         selected.add(uri);
