@@ -114,6 +114,30 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 **Unsigned release APK មិនអាចដំឡើងដោយផ្ទាល់បានទេ**; ត្រូវ sign មុន ឬប្រើ debug APK សម្រាប់សាកល្បង។
 
+### ដំឡើងលើទូរស័ព្ទ (បើទូរស័ព្ទថា "មិនមានសុវត្ថិភាព")
+
+Android បង្ហាញការព្រមានថា app "មិនមានសុវត្ថិភាព" សម្រាប់ APK ដែលដំឡើងក្រៅ Play Store — នេះជារឿងធម្មតា មិនមែនមានន័យថា APK ខូចទេ។ ការចុច **Install anyway / បន្តដំឡើង** គឺត្រឹមត្រូវ។ បើដំឡើងនៅតែមិនចេញ សូមពិនិត្យតាមតារាង៖
+
+| អ្វីដែលឃើញ | មូលហេតុ | ដំណោះស្រាយ |
+| --- | --- | --- |
+| ដំឡើងមិនចេញ ពេលជ្រើសឯកសារ `.zip` | Artifact ពី GitHub ជា ZIP ដែលមាន APK នៅខាងក្នុង | ដោះ ZIP ចេញជាមុន រួចដំឡើងឯកសារ `.apk` ខាងក្នុង |
+| "App not installed" ជាមួយ `gemini-release-UNSIGNED-...apk` | APK គ្មានហត្ថលេខា Android មិនអនុញ្ញាតឱ្យដំឡើងឡើយ | ប្រើ `gemini-debug-installable.apk` ឬកំណត់ signing secrets ទាំង 4 |
+| "App not installed as package conflicts with an existing package" | App ចាស់ដំឡើងរួច ហើយ APK ថ្មីមាន **ហត្ថលេខាខុស** ពីចាស់ (debug key របស់ CI ប្ដូររាល់ run) | Uninstall app ចាស់ចេញ រួចដំឡើងម្ដងទៀត |
+| Play Protect បិទ "Unsafe app blocked" | Play Protect មិនស្គាល់ app ក្រៅហាង | ចុច **Install anyway**; បើនៅតែបិទ សូមបិទ "Scan apps with Play Protect" បណ្ដោះអាសន្ន |
+| ដំឡើងមិនចេញ ដោយគ្មានសារ | ទូរស័ព្ទចាស់ជាង API 24 | App ត្រូវការ Android 7.0 ឡើងទៅ |
+
+ជំហានណែនាំ៖
+
+1. ទាញ artifact `gemini-debug-apk` ពី Actions → ជ្រើស run → ផ្នែក Artifacts។
+2. ដោះ ZIP ចេញ ដើម្បីបានឯកសារ `gemini-debug-installable.apk`។
+3. Settings → Apps → Special app access → Install unknown apps → អនុញ្ញាតឱ្យ browser ឬ file manager។
+4. បើធ្លាប់ដំឡើង build ចាស់ → uninstall ចេញជាមុន។
+5. ដំឡើង APK → បើ Play Protect បិទ → **Install anyway**។
+
+APK debug សម្រាប់តែសាកល្បង (មាន `android:debuggable` និងត្រូវបានចុះហត្ថលេខាដោយ debug key)។ ហត្ថលេខារបស់ APK និង fingerprint របស់ debug key ត្រូវបានបង្ហាញក្នុង **run summary** និងក្នុងឯកសារ `apk-signing-report.txt` នៅក្នុង artifact។
+
+**សំខាន់៖** CI បង្កើត debug key ថ្មីរាល់ run (បានផ្ទៀងផ្ទាត់៖ run 36588074159 → `90711642…e9b0`, run 36588402355 → `7e943d73…8376`) ដូច្នេះ APK debug ពី run ថ្មី **មិនអាចដំឡើងជាន់លើ** build ចាស់បានទេ បើមិន uninstall ចាស់ចេញជាមុន។ បើចង់ឱ្យហត្ថលេខានៅដដែល និងដំឡើងជាន់លើបានរាល់ដង សូមកំណត់ signing secrets ទាំង 4 (ខាងក្រោម) រួចទាញ `gemini-release-signed-installable.apk` ជំនួស។
+
 ### Optional release signing
 
 Gradle ប្រើ environment variables ទាំង 4 ខាងក្រោម ប្រសិនបើមានទាំងអស់៖
@@ -127,9 +151,9 @@ Gradle ប្រើ environment variables ទាំង 4 ខាងក្រោ�
 
 ## GitHub Actions
 
-`.github/workflows/build-apk.yml` ដំណើរការពេល **push ទៅ `main`** និងអាច **Run workflow** ដោយដៃ (`workflow_dispatch`) ពេល workflow មាននៅ default branch។ វា៖
+`.github/workflows/build-apk.yml` ដំណើរការពេល **push ទៅ `main`**, ពេលបើក **pull request ទៅ `main`**, និងអាច **Run workflow** ដោយដៃ (`workflow_dispatch`)។ វា៖
 
-1. Checkout → JDK 17 → Android SDK 34 / Build-Tools 34.0.0។
+1. Checkout → JDK 17 → ដំឡើង Android SDK 34 / Build-Tools 34.0.0 ដោយ `sdkmanager` ដែលមានស្រាប់លើ runner image (ANDROID_HOME ត្រូវបានកំណត់រួច)។ មិនប្រើ `android-actions/setup-android@v3` ទេ ព្រោះ default របស់វាគឺ `packages: tools platform-tools` ហើយ package `tools` ត្រូវបាន Google ដកចេញពី SDK repository — វាធ្វើឱ្យ `sdkmanager` exit 1 និង job ខូចមុនពេល Gradle ដំណើរការ (run 36585480375)។
 2. រត់ unit tests និង Android Lint។
 3. Build debug និង release APK។
 4. Upload artifacts `gemini-debug-apk` និង `gemini-release-apk`។
@@ -149,6 +173,8 @@ Keystore ត្រូវបាន decode ក្នុង runner temporary direct
 
 `MainActivity` មាន settings ទាំងអស់ដែលបានស្នើ៖ JavaScript, DOM storage, database, media playback without gesture, overview/wide viewport, បិទ zoom controls/support zoom, អនុញ្ញាត file/content access។
 
+ទំហំអក្សរក្នុងទំព័រត្រូវបានកំណត់ត្រឹម **60%** នៃ default តាមរយៈ `settings.setTextZoom(WEB_TEXT_ZOOM)` (ថេរ `WEB_TEXT_ZOOM` ក្នុង `MainActivity.java`) ព្រោះ layout របស់ Gemini បង្ហាញធំពេកលើទូរស័ព្ទ។ បើចង់ធំ/តូចជាងនេះ សូមប្ដូរតែតម្លៃ `60` នោះ (100 = ធម្មតា)។
+
 បន្ថែម៖ បិទ cross-origin access ពី local file URLs, មិនអនុញ្ញាត mixed content/cleartext HTTP ក្នុង app, cancel TLS errors, មិនប្រើ JavaScript bridge, និងមិនបើក WebView debugging។ `UrlPolicy` ផ្ទៀងផ្ទាត់ HTTPS host/port ពិតប្រាកដ មិនប្រើ `contains("google.com")` ទេ។ Origin sign-in **មិន** ទទួល camera/microphone permission។ បើមិនត្រូវការ `setAllowFileAccess(true)` អាចបិទវាសម្រាប់ hardening បន្ថែម។
 
 App មិន backup ទិន្នន័យគណនីទេ។ Cookies/local storage រក្សាក្នុង app sandbox; Clear storage ឬ uninstall ដើម្បីលុប session។ រូបដែលថតសម្រាប់ upload រក្សាក្នុង cache រហូត Activity បិទ; បើ process ត្រូវបានសម្លាប់ភ្លាមៗ អាចមាន cache សល់រហូតប្រព័ន្ធសម្អាត ឬអ្នកប្រើ clear cache។
@@ -157,7 +183,9 @@ App មិន backup ទិន្នន័យគណនីទេ។ Cookies/local
 
 បានពិនិត្យក្នុង workspace៖ syntax Java ដោយ parser, XML, YAML workflow, resource references និង SHA-256 របស់ Gradle wrapper ទល់នឹង upstream។
 
-**មិនទាន់អាចបញ្ជាក់ថា APK build ជោគជ័យក្នុង workspace នេះទេ**៖ មិនមាន Android SDK និងការទាញ Gradle/Android SDK ត្រូវបានរារាំងដោយ TLS/network។ ការផ្ទៀងផ្ទាត់ syntax មិនជំនួស Android compilation ឬការសាកល្បងលើឧបករណ៍ពិតទេ។ Unit tests និង Lint ត្រូវបានកំណត់ឱ្យរត់ក្នុង workflow និងតាម commands ខាងលើ។
+Build APK ជោគជ័យលើ GitHub Actions រួចហើយ (run 36586666184, commit `4e4ccc1`)៖ steps ទាំងអស់រួមទាំង unit tests, Lint, assembleDebug និង assembleRelease ជោគជ័យ ហើយ artifacts `gemini-debug-apk` (~2.8 MB) និង `gemini-release-apk` (~2.2 MB, unsigned ពេលគ្មាន signing secrets) ត្រូវបាន upload។
+
+**ផ្នែកដែលមិនអាចផ្ទៀងផ្ទាត់ក្នុង workspace បានទេ**៖ workspace នេះគ្មាន Android SDK និងគ្មាន network egress ទៅ dl.google.com/services.gradle.org ដូច្នេះការបញ្ជាក់ចុងក្រោយគឺមកពី CI។ ការសាកល្បងលើឧបករណ៍ពិត (install APK, camera/mic upload) នៅតែជាជំហានរបស់អ្នកប្រើ។
 
 សូមសាកល្បងលើ API 24 និង API 34៖
 

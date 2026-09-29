@@ -65,6 +65,11 @@ public class MainActivity extends AppCompatActivity {
     private PermissionRequest pendingWebPermission;
     private Uri cameraOutputUri;
     private File cameraOutputFile;
+    // Page text size in percent of the system default (WebView default is 100).
+    // Gemini's web layout rendered far too large on phones, so the app pins it to 60%.
+    // This is the only value to change for bigger/smaller text.
+    private static final int WEB_TEXT_ZOOM = 60;
+
     // Keep successful capture files until the WebView is destroyed: it may still read them.
     private final List<File> capturedFiles = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -134,6 +139,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
+        // Shrink the page text; the layout still fits the screen width.
+        settings.setTextZoom(WEB_TEXT_ZOOM);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);

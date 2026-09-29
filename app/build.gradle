@@ -46,6 +46,16 @@ android {
 }
 
 dependencies {
+    // androidx.core:core-ktx:1.8.0 (pulled in by appcompat) and core-splashscreen:1.0.1
+    // still ask for kotlin-stdlib-jdk7/jdk8 1.6.21, while androidx.activity:activity:1.8.2
+    // pulls kotlin-stdlib 1.8.22. Since Kotlin 1.8.0 those jdk7/jdk8 classes live inside
+    // kotlin-stdlib itself, so mixing the old jars makes :app:checkDebugDuplicateClasses
+    // fail with "Duplicate class kotlin.collections.jdk8.CollectionsJDK8Kt" (CI run
+    // 36586215991). The Kotlin BOM aligns every org.jetbrains.kotlin module on one
+    // version, and the 1.8.22 jdk7/jdk8 artifacts are empty shells, so the duplicate
+    // classes disappear.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.activity:activity:1.8.2'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
