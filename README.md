@@ -122,7 +122,7 @@ Android បង្ហាញការព្រមានថា app "មិនមា
 | --- | --- | --- |
 | ដំឡើងមិនចេញ ពេលជ្រើសឯកសារ `.zip` | Artifact ពី GitHub ជា ZIP ដែលមាន APK នៅខាងក្នុង | ដោះ ZIP ចេញជាមុន រួចដំឡើងឯកសារ `.apk` ខាងក្នុង |
 | "App not installed" ជាមួយ `gemini-release-UNSIGNED-...apk` | APK គ្មានហត្ថលេខា Android មិនអនុញ្ញាតឱ្យដំឡើងឡើយ | ប្រើ `gemini-debug-installable.apk` ឬកំណត់ signing secrets ទាំង 4 |
-| "App not installed as package conflicts with an existing package" | App ចាស់ដំឡើងរួច ហើយ APK ថ្មីមាន **ហត្ថលេខាខុស** ពីចាស់ | Uninstall app ចាស់ចេញ រួចដំឡើងម្ដងទៀត |
+| "App not installed as package conflicts with an existing package" | App ចាស់ដំឡើងរួច ហើយ APK ថ្មីមាន **ហត្ថលេខាខុស** ពីចាស់ (debug key របស់ CI ប្ដូររាល់ run) | Uninstall app ចាស់ចេញ រួចដំឡើងម្ដងទៀត |
 | Play Protect បិទ "Unsafe app blocked" | Play Protect មិនស្គាល់ app ក្រៅហាង | ចុច **Install anyway**; បើនៅតែបិទ សូមបិទ "Scan apps with Play Protect" បណ្ដោះអាសន្ន |
 | ដំឡើងមិនចេញ ដោយគ្មានសារ | ទូរស័ព្ទចាស់ជាង API 24 | App ត្រូវការ Android 7.0 ឡើងទៅ |
 
@@ -134,7 +134,9 @@ Android បង្ហាញការព្រមានថា app "មិនមា
 4. បើធ្លាប់ដំឡើង build ចាស់ → uninstall ចេញជាមុន។
 5. ដំឡើង APK → បើ Play Protect បិទ → **Install anyway**។
 
-APK debug សម្រាប់តែសាកល្បង (មាន `android:debuggable` និងត្រូវបានចុះហត្ថលេខាដោយ debug key)។ សម្រាប់ការចែកចាយ ត្រូវកំណត់ signing secrets ទាំង 4 ដើម្បីបាន release APK ដែល signed ដោយ key របស់អ្នក។ ហត្ថលេខារបស់ APK និង fingerprint របស់ debug key ត្រូវបានបង្ហាញក្នុង **run summary** និងក្នុងឯកសារ `apk-signing-report.txt` នៅក្នុង artifact។
+APK debug សម្រាប់តែសាកល្បង (មាន `android:debuggable` និងត្រូវបានចុះហត្ថលេខាដោយ debug key)។ ហត្ថលេខារបស់ APK និង fingerprint របស់ debug key ត្រូវបានបង្ហាញក្នុង **run summary** និងក្នុងឯកសារ `apk-signing-report.txt` នៅក្នុង artifact។
+
+**សំខាន់៖** CI បង្កើត debug key ថ្មីរាល់ run (បានផ្ទៀងផ្ទាត់៖ run 36588074159 → `90711642…e9b0`, run 36588402355 → `7e943d73…8376`) ដូច្នេះ APK debug ពី run ថ្មី **មិនអាចដំឡើងជាន់លើ** build ចាស់បានទេ បើមិន uninstall ចាស់ចេញជាមុន។ បើចង់ឱ្យហត្ថលេខានៅដដែល និងដំឡើងជាន់លើបានរាល់ដង សូមកំណត់ signing secrets ទាំង 4 (ខាងក្រោម) រួចទាញ `gemini-release-signed-installable.apk` ជំនួស។
 
 ### Optional release signing
 
