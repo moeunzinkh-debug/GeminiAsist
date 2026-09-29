@@ -114,6 +114,28 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 **Unsigned release APK មិនអាចដំឡើងដោយផ្ទាល់បានទេ**; ត្រូវ sign មុន ឬប្រើ debug APK សម្រាប់សាកល្បង។
 
+### ដំឡើងលើទូរស័ព្ទ (បើទូរស័ព្ទថា "មិនមានសុវត្ថិភាព")
+
+Android បង្ហាញការព្រមានថា app "មិនមានសុវត្ថិភាព" សម្រាប់ APK ដែលដំឡើងក្រៅ Play Store — នេះជារឿងធម្មតា មិនមែនមានន័យថា APK ខូចទេ។ ការចុច **Install anyway / បន្តដំឡើង** គឺត្រឹមត្រូវ។ បើដំឡើងនៅតែមិនចេញ សូមពិនិត្យតាមតារាង៖
+
+| អ្វីដែលឃើញ | មូលហេតុ | ដំណោះស្រាយ |
+| --- | --- | --- |
+| ដំឡើងមិនចេញ ពេលជ្រើសឯកសារ `.zip` | Artifact ពី GitHub ជា ZIP ដែលមាន APK នៅខាងក្នុង | ដោះ ZIP ចេញជាមុន រួចដំឡើងឯកសារ `.apk` ខាងក្នុង |
+| "App not installed" ជាមួយ `gemini-release-UNSIGNED-...apk` | APK គ្មានហត្ថលេខា Android មិនអនុញ្ញាតឱ្យដំឡើងឡើយ | ប្រើ `gemini-debug-installable.apk` ឬកំណត់ signing secrets ទាំង 4 |
+| "App not installed as package conflicts with an existing package" | App ចាស់ដំឡើងរួច ហើយ APK ថ្មីមាន **ហត្ថលេខាខុស** ពីចាស់ | Uninstall app ចាស់ចេញ រួចដំឡើងម្ដងទៀត |
+| Play Protect បិទ "Unsafe app blocked" | Play Protect មិនស្គាល់ app ក្រៅហាង | ចុច **Install anyway**; បើនៅតែបិទ សូមបិទ "Scan apps with Play Protect" បណ្ដោះអាសន្ន |
+| ដំឡើងមិនចេញ ដោយគ្មានសារ | ទូរស័ព្ទចាស់ជាង API 24 | App ត្រូវការ Android 7.0 ឡើងទៅ |
+
+ជំហានណែនាំ៖
+
+1. ទាញ artifact `gemini-debug-apk` ពី Actions → ជ្រើស run → ផ្នែក Artifacts។
+2. ដោះ ZIP ចេញ ដើម្បីបានឯកសារ `gemini-debug-installable.apk`។
+3. Settings → Apps → Special app access → Install unknown apps → អនុញ្ញាតឱ្យ browser ឬ file manager។
+4. បើធ្លាប់ដំឡើង build ចាស់ → uninstall ចេញជាមុន។
+5. ដំឡើង APK → បើ Play Protect បិទ → **Install anyway**។
+
+APK debug សម្រាប់តែសាកល្បង (មាន `android:debuggable` និងត្រូវបានចុះហត្ថលេខាដោយ debug key)។ សម្រាប់ការចែកចាយ ត្រូវកំណត់ signing secrets ទាំង 4 ដើម្បីបាន release APK ដែល signed ដោយ key របស់អ្នក។ ហត្ថលេខារបស់ APK និង fingerprint របស់ debug key ត្រូវបានបង្ហាញក្នុង **run summary** និងក្នុងឯកសារ `apk-signing-report.txt` នៅក្នុង artifact។
+
 ### Optional release signing
 
 Gradle ប្រើ environment variables ទាំង 4 ខាងក្រោម ប្រសិនបើមានទាំងអស់៖

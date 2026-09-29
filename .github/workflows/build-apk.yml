@@ -84,8 +84,6 @@ jobs:
           {
             echo "## APK signing report"
             echo ""
-            echo "keystore: \`$(ls -l "$HOME/.android/debug.keystore" 2>/dev/null || echo 'none (fresh key generated for this run)')\`"
-            echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
           for apk in app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk; do
@@ -101,15 +99,23 @@ jobs:
           done
 
           # The debug key is the one that decides whether a new build can upgrade
-          # an already installed app (Android requires the same key).
-          if [ -f "$HOME/.android/debug.keystore" ]; then
+          # an already installed app (Android requires the same key), so show where
+          # it lives and when it was created. A key generated minutes ago means the
+          # runner made a fresh one for this build.
+          found=0
+          while IFS= read -r ks; do
+            [ -n "$ks" ] || continue
+            found=1
             {
               echo ""
-              echo "debug keystore fingerprint:"
-              keytool -list -v -keystore "$HOME/.android/debug.keystore" \
-                -storepass android -alias androiddebugkey 2>/dev/null \
+              echo "debug keystore: \`$ks\`"
+              stat -c 'created/modified: %y, %s bytes' "$ks" 2>/dev/null || true
+              keytool -list -v -keystore "$ks" -storepass android -alias androiddebugkey 2>/dev/null \
                 | grep -iE "SHA256:|Valid from:" || true
             } | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          done < <(find "$HOME" "$ANDROID_HOME" -maxdepth 4 -name 'debug.keystore' 2>/dev/null)
+          if [ "$found" -eq 0 ]; then
+            echo "no debug.keystore found on the runner" | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
           fi
       # Same bytes, honest file names: the release APK keeps an UNSIGNED marker so
       # nobody tries to sideload it by mistake.
