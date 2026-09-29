@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Gemini" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gemini_accent</item>
+        <item name="colorPrimaryDark">@color/gemini_accent_dark</item>
+        <item name="colorAccent">@color/gemini_accent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/gemini_background</item>
+        <item name="android:navigationBarColor">@color/gemini_background</item>
+        <item name="android:windowBackground">@color/gemini_background</item>
+    </style>
+
+    <style name="Theme.Gemini.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/gemini_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Gemini</item>
+    </style>
+</resources>
