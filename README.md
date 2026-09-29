@@ -173,6 +173,8 @@ Keystore ត្រូវបាន decode ក្នុង runner temporary direct
 
 `MainActivity` មាន settings ទាំងអស់ដែលបានស្នើ៖ JavaScript, DOM storage, database, media playback without gesture, overview/wide viewport, បិទ zoom controls/support zoom, អនុញ្ញាត file/content access។
 
+ទំហំអក្សរក្នុងទំព័រត្រូវបានកំណត់ត្រឹម **60%** នៃ default តាមរយៈ `settings.setTextZoom(WEB_TEXT_ZOOM)` (ថេរ `WEB_TEXT_ZOOM` ក្នុង `MainActivity.java`) ព្រោះ layout របស់ Gemini បង្ហាញធំពេកលើទូរស័ព្ទ។ បើចង់ធំ/តូចជាងនេះ សូមប្ដូរតែតម្លៃ `60` នោះ (100 = ធម្មតា)។
+
 បន្ថែម៖ បិទ cross-origin access ពី local file URLs, មិនអនុញ្ញាត mixed content/cleartext HTTP ក្នុង app, cancel TLS errors, មិនប្រើ JavaScript bridge, និងមិនបើក WebView debugging។ `UrlPolicy` ផ្ទៀងផ្ទាត់ HTTPS host/port ពិតប្រាកដ មិនប្រើ `contains("google.com")` ទេ។ Origin sign-in **មិន** ទទួល camera/microphone permission។ បើមិនត្រូវការ `setAllowFileAccess(true)` អាចបិទវាសម្រាប់ hardening បន្ថែម។
 
 App មិន backup ទិន្នន័យគណនីទេ។ Cookies/local storage រក្សាក្នុង app sandbox; Clear storage ឬ uninstall ដើម្បីលុប session។ រូបដែលថតសម្រាប់ upload រក្សាក្នុង cache រហូត Activity បិទ; បើ process ត្រូវបានសម្លាប់ភ្លាមៗ អាចមាន cache សល់រហូតប្រព័ន្ធសម្អាត ឬអ្នកប្រើ clear cache។
