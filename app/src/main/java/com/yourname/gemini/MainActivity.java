@@ -216,6 +216,16 @@ public class MainActivity extends AppCompatActivity {
 
     private final List<File> capturedFiles = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // Periodically re-asserts the user's text size (see onResume). Body only
+    // touches `handler` when running, so declaration order is irrelevant.
+    private final Runnable textZoomKeepAlive = new Runnable() {
+        @Override public void run() {
+            if (destroyed || webView == null) return;
+            applyTextZoom();
+            handler.postDelayed(this, 1000);
+        }
+    };
     private final Runnable revealPage = () -> loadingSplash.setVisibility(View.GONE);
 
     private final ActivityResultLauncher<Intent> filePicker = registerForActivityResult(
@@ -660,9 +670,18 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
+        // Keep-alive: re-assert the user's text size once per second while
+        // resumed. Some WebView builds reset textZoom *after* the page
+        // callbacks have already fired (late renderer init following the
+        // login redirect chain), which showed Gemini at 100% right after
+        // signing in. setTextZoom is change-detected inside the WebView, so
+        // this is a no-op unless something actually reset it.
+        handler.removeCallbacks(textZoomKeepAlive);
+        handler.postDelayed(textZoomKeepAlive, 1000);
     }
 
     @Override protected void onPause() {
+        handler.removeCallbacks(textZoomKeepAlive);
         if (webView != null) webView.onPause();
         CookieManager.getInstance().flush();
         super.onPause();
