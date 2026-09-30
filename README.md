@@ -41,3 +41,40 @@
 ```
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+# ChatGPT - Android WebView
+
+![Tag](https://img.shields.io/badge/Tag-Chatgpt%20WebView-74AA9C) ![Platform](https://img.shields.io/badge/Platform-Android-green) ![Language](https://img.shields.io/badge/Language-Java%2017-orange)
+
+កម្មវិធី WebView សម្រាប់បើក **https://chatgpt.com/** ដោយគ្មាន address bar ពេញអេក្រង់ — flavor ថ្មីក្នុងគម្រោងដដែល។
+
+> **Tag:** `Chatgpt WebView`
+
+## Flavor ពីរ — source តែមួយ, APK ពីរ
+
+| Flavor | Tag | applicationId | កូដ |
+|---|---|---|---|
+| `gemini` | `Gemini WebView` | `com.yourname.gemini` | `src/main` (ដូចមុន 100%) |
+| `chatgpt` | `Chatgpt WebView` | `com.yourname.chatgpt` | `src/chatgpt` + `src/main` |
+
+កូដ Gemini ក្នុង `src/main` **មិនប៉ះ** — គ្រប់ការផ្លាស់ប្តូររបស់ ChatGPT នៅក្នុង `src/chatgpt` (source set ថ្មី):
+
+- **Launcher ផ្សេង** - manifest overlay លែងបង្ហាញ icon Gemini ក្នុង build ChatGPT
+- **ឈ្មោះ/ពណ៌/icon** - resource override (app name "ChatGPT", ពណ៌បៃតង #10A37F, icon chat bubble)
+- **URL Policy ថ្មី** - `chatgpt.com` + sign-in chain (`*.openai.com`, Google/Apple SSO, Cloudflare check)
+- **មុខងារដដែល** - អក្សរ 50%, scroll រលូន, pull-to-refresh, upload file, camera/mic, back navigation, error handling
+- **ដំឡើងដាច់ដោយឡែក** - applicationId ខុសគ្នា → app ទាំងពីរនៅលើទូរស័ព្ទតែមួយ
+
+## Build
+
+```bash
+./gradlew :app:assembleGeminiDebug    # tag Gemini WebView (ដូចមុន)
+./gradlew :app:assembleChatgptDebug   # tag Chatgpt WebView
+```
+
+APK:
+
+- Gemini: `app/build/outputs/apk/gemini/debug/app-gemini-debug.apk`
+- ChatGPT: `app/build/outputs/apk/chatgpt/debug/app-chatgpt-debug.apk`
