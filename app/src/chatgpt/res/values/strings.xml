@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chatgpt WebView tag: same keys as src/main, ChatGPT wording.
+     Flavor resources override src/main resources automatically. -->
+<resources>
+    <string name="app_name">ChatGPT</string>
+    <string name="connection_error">Unable to load ChatGPT</string>
+    <string name="media_permission_denied">Camera or microphone access was denied. You can enable it in Android Settings → Apps → ChatGPT → Permissions.</string>
+</resources>

@@ -69,8 +69,10 @@ jobs:
             echo "GEMINI_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "GEMINI_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
+      # Two product flavors (gemini + chatgpt) mean there is no plain `debug`
+      # variant anymore: unit tests and lint run per flavor.
       - name: Test and lint
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug
+        run: ./gradlew --no-daemon :app:testGeminiDebugUnitTest :app:testChatgptDebugUnitTest :app:lintGeminiDebug :app:lintChatgptDebug
       - name: Build debug and release APKs
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
       # A phone only installs an APK whose signature it can read, so print exactly
@@ -86,7 +88,8 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-          for apk in app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk; do
+          # Per-flavor output dirs: apk/<flavor>/<buildType>/app-<flavor>-<buildType>*.apk
+          for apk in app/build/outputs/apk/*/*/*.apk; do
             [ -f "$apk" ] || continue
             name="$(basename "$apk")"
             if "$APKSIGNER" verify --print-certs "$apk" > /tmp/certs.txt 2>&1; then
@@ -118,16 +121,26 @@ jobs:
             echo "no debug.keystore found on the runner" | tee -a "$REPORT" >> "$GITHUB_STEP_SUMMARY"
           fi
       # Same bytes, honest file names: the release APK keeps an UNSIGNED marker so
-      # nobody tries to sideload it by mistake.
+      # nobody tries to sideload it by mistake. One set of names per flavor/tag:
+      # gemini-* (Gemini WebView tag) and chatgpt-* (Chatgpt WebView tag).
       - name: Name the APKs after what they are
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/*.apk dist/gemini-debug-installable.apk
-          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/gemini-release-UNSIGNED-needs-signing.apk
-          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk dist/gemini-release-signed-installable.apk
-          fi
+          for flavor in gemini chatgpt; do
+            debug_dir="app/build/outputs/apk/$flavor/debug"
+            release_dir="app/build/outputs/apk/$flavor/release"
+
+            for apk in "$debug_dir"/*.apk; do
+              [ -e "$apk" ] || continue
+              cp "$apk" "dist/$flavor-debug-installable.apk"
+            done
+
+            if [ -f "$release_dir/app-$flavor-release-unsigned.apk" ]; then
+              cp "$release_dir/app-$flavor-release-unsigned.apk" "dist/$flavor-release-UNSIGNED-needs-signing.apk"
+            elif [ -f "$release_dir/app-$flavor-release.apk" ]; then
+              cp "$release_dir/app-$flavor-release.apk" "dist/$flavor-release-signed-installable.apk"
+            fi
+          done
           cp apk-signing-report.txt dist/
           ls -lh dist
       - name: Upload debug APK (signed, installable)
@@ -142,6 +155,20 @@ jobs:
           name: gemini-release-apk
           path: |
             dist/gemini-release-*.apk
+            dist/apk-signing-report.txt
+          if-no-files-found: error
+      - name: Upload ChatGPT debug APK (signed, installable)
+        uses: actions/upload-artifact@v7
+        with:
+          name: chatgpt-debug-apk
+          path: dist/chatgpt-debug-*.apk
+          if-no-files-found: error
+      - name: Upload ChatGPT release APK (unsigned unless signing secrets are set)
+        uses: actions/upload-artifact@v7
+        with:
+          name: chatgpt-release-apk
+          path: |
+            dist/chatgpt-release-*.apk
             dist/apk-signing-report.txt
           if-no-files-found: error
       - name: Remove signing key

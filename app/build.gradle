@@ -39,6 +39,25 @@ android {
         }
     }
 
+    // Two product flavors = two tags, two installable APKs, one source tree:
+    //   gemini  -> "Gemini WebView" tag. Uses src/main only; behaviour and
+    //              file layout are exactly what that tag has always shipped.
+    //   chatgpt -> "Chatgpt WebView" tag. Everything ChatGPT-specific lives in
+    //              src/chatgpt (own launcher activity, own URL policy, own
+    //              resource overrides). No file under src/main changes.
+    // ChatGPT is also a separate applicationId so it installs next to the
+    // Gemini app instead of replacing it.
+    flavorDimensions = ['assistant']
+    productFlavors {
+        gemini {
+            dimension 'assistant'
+        }
+        chatgpt {
+            dimension 'assistant'
+            applicationId 'com.yourname.chatgpt'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
