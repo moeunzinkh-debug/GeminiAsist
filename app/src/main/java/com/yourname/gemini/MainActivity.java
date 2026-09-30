@@ -81,6 +81,11 @@ public class MainActivity extends AppCompatActivity {
     //     top through the AndroidScroll bridge, so pull-to-refresh only
     //     triggers when there is nothing above to scroll to. Gemini scrolls an
     //     inner div, not the WebView, so the native scroll APIs cannot see it.
+    //  3. "+"-row only: a strip whose content really overflows horizontally
+    //     but is clipped (overflow-x hidden/clip) can never be dragged, so it
+    //     is turned into a touch scroller and freed from the max-width clamp.
+    //     Elements whose content fits are never touched, so nothing outside
+    //     that row is affected.
     private static final String LAYOUT_FIX_JS =
             "(function(){\n" +
             "  try{\n" +
@@ -136,6 +141,19 @@ public class MainActivity extends AppCompatActivity {
             "                if(br.indexOf('%')>-1||pxx>=24){el.classList.add('gax-round');}\n" +
             "              }\n" +
             "            }catch(e3){}\n" +
+            "          } else if((ovx==='hidden'||ovx==='clip') && el.scrollWidth>el.clientWidth+1){\n" +
+            "            el.__gaxH=1;\n" +
+            "            el.classList.add('gax-hscroll');\n" +
+            "            el.style.setProperty('overflow-x','auto');\n" +
+            "            el.style.setProperty('-webkit-overflow-scrolling','touch');\n" +
+            "            try{\n" +
+            "              var probe2=el.querySelector('button')||el.firstElementChild;\n" +
+            "              if(probe2){\n" +
+            "                var t2=probe2.firstElementChild||probe2;\n" +
+            "                var br2=getComputedStyle(t2).borderRadius||'';\n" +
+            "                if(br2.indexOf('%')>-1||(parseFloat(br2)||0)>=24){el.classList.add('gax-round');}\n" +
+            "              }\n" +
+            "            }catch(e4){}\n" +
             "          }\n" +
             "        }\n" +
             "      }catch(e){}\n" +
