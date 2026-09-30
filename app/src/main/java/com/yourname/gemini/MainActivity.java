@@ -16,6 +16,7 @@ import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -60,39 +61,195 @@ public class MainActivity extends AppCompatActivity {
     private boolean filePickerActive;
     private boolean permissionPromptActive;
     private boolean destroyed;
+    // True once the page (or its inner chat scroller) has scrolled below the
+    // top. Reported from JS because the native WebView scroll position stays 0.
+    private volatile boolean pageScrolledDown;
     private ValueCallback<Uri[]> fileCallback;
     private Intent pendingImagePicker;
     private PermissionRequest pendingWebPermission;
     private Uri cameraOutputUri;
     private File cameraOutputFile;
-    // Fixed: was 60% causing text cut to left and scroll miscalc
-    private static final int WEB_TEXT_ZOOM = 100;
+    // User-requested text size: 50%. The injected LAYOUT_FIX_JS clamps the page
+    // to the viewport width and kills horizontal scroll so the smaller text
+    // never drifts off the left edge of the screen. NOTE: the WebView resets
+    // textZoom back to 100% when navigating across origins (the Google login
+    // redirect chain gemini.google.com -> accounts.google.com ->
+    // gemini.google.com), which showed Gemini at its default size right after
+    // signing in. applyTextZoom() re-asserts this value on every page event.
+    private static final int WEB_TEXT_ZOOM = 50;
 
-    // JS fix for bug 1: text disappears to left, bug 2: scroll up cannot scroll down
+    // Injected page fix:
+    //  1. Clamp the layout to the viewport width and kill horizontal scroll so
+    //     text never disappears off the left edge at 50% text size.
+    //  2. Report whether the page (or its inner chat scroller) is below the
+    //     top through the AndroidScroll bridge, so pull-to-refresh only
+    //     triggers when there is nothing above to scroll to. Gemini scrolls an
+    //     inner div, not the WebView, so the native scroll APIs cannot see it.
+    //  3. "+"-row only: a strip whose content really overflows horizontally
+    //     but is clipped (overflow-x hidden/clip) can never be dragged, so it
+    //     is turned into a touch scroller and freed from the max-width clamp.
+    //     Elements whose content fits are never touched, so nothing outside
+    //     that row is affected.
+    //  4. Text-size watchdog: a hidden 100px-font probe measures its rendered
+    //     line height every 500ms. If the WebView reset textZoom (text back at
+    //     ~100%, e.g. after the Google login redirect) the probe reports it
+    //     through AndroidScroll.requestTextZoomFix() and the app re-applies
+    //     the user's size immediately, whatever the reset timing was.
     private static final String LAYOUT_FIX_JS =
             "(function(){\n" +
             "  try{\n" +
             "    if(window.__geminiFix) return;\n" +
             "    window.__geminiFix=true;\n" +
-            "    function fix(){\n" +
+            "    var css='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;} .gax-hscroll,.gax-hscroll *{max-width:none!important;} .gax-round{zoom:.8;}';\n" +
+            "    var vpWant='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';\n" +
+            "    function fixLayout(){\n" +
             "      try{\n" +
             "        var el=document.getElementById('gemini-fix');\n" +
             "        if(!el){el=document.createElement('style');el.id='gemini-fix';(document.head||document.documentElement).appendChild(el);}\n" +
-            "        el.textContent='html{overflow-x:hidden!important;max-width:100vw!important;} body{overflow-x:hidden!important;padding-left:12px!important;padding-right:12px!important;box-sizing:border-box!important;max-width:100vw!important;overscroll-behavior-y:contain!important;margin:0!important;} *{box-sizing:border-box!important;max-width:100%!important;word-wrap:break-word!important;overflow-wrap:break-word!important;} img,video{max-width:100%!important;height:auto!important;} main,[role=main],.chat-history{max-width:100vw!important;overflow-x:hidden!important;}';\n" +
+            "        if(el.textContent!==css){el.textContent=css;}\n" +
             "        var vp=document.querySelector('meta[name=viewport]');\n" +
             "        if(!vp){vp=document.createElement('meta');vp.name='viewport';(document.head||document.documentElement).appendChild(vp);}\n" +
-            "        vp.setAttribute('content','width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');\n" +
+            "        if(vp.getAttribute('content')!==vpWant){vp.setAttribute('content',vpWant);}\n" +
+            "        var sx=window.scrollX||document.documentElement.scrollLeft||0;\n" +
+            "        if(sx!==0){window.scrollTo(0,window.scrollY||document.documentElement.scrollTop||0);}\n" +
             "      }catch(e){}\n" +
             "    }\n" +
-            "    fix();\n" +
-            "    try{new MutationObserver(fix).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}\n" +
-            "    setInterval(fix,1500);\n" +
-            "    window.addEventListener('resize',fix);\n" +
+            "    var scrollers=[];\n" +
+            "    function collectScrollers(){\n" +
+            "      try{\n" +
+            "        scrollers=[];\n" +
+            "        var all=document.querySelectorAll('*');\n" +
+            "        for(var i=0;i<all.length;i++){\n" +
+            "          var n=all[i];\n" +
+            "          if(n.scrollHeight>n.clientHeight+1){\n" +
+            "            var ov='';\n" +
+            "            try{ov=getComputedStyle(n).overflowY;}catch(e2){}\n" +
+            "            if(ov==='auto'||ov==='scroll'){scrollers.push(n);}\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }catch(e){}\n" +
+            "    }\n" +
+            "    function fixHScroll(){\n" +
+            "      try{\n" +
+            "        var all=document.querySelectorAll('*');\n" +
+            "        for(var i=0;i<all.length;i++){\n" +
+            "          var el=all[i];\n" +
+            "          if(el.__gaxH){continue;}\n" +
+            "          var ovx='';\n" +
+            "          try{ovx=getComputedStyle(el).overflowX;}catch(e2){}\n" +
+            "          if(ovx==='auto'||ovx==='scroll'){\n" +
+            "            el.__gaxH=1;\n" +
+            "            el.classList.add('gax-hscroll');\n" +
+            "            el.style.setProperty('-webkit-overflow-scrolling','touch');\n" +
+            "            try{\n" +
+            "              var probe=el.querySelector('button')||el.firstElementChild;\n" +
+            "              if(probe){\n" +
+            "                var t=probe.firstElementChild||probe;\n" +
+            "                var br=getComputedStyle(t).borderRadius||'';\n" +
+            "                var pxx=parseFloat(br)||0;\n" +
+            "                if(br.indexOf('%')>-1||pxx>=24){el.classList.add('gax-round');}\n" +
+            "              }\n" +
+            "            }catch(e3){}\n" +
+            "          } else if((ovx==='hidden'||ovx==='clip') && el.scrollWidth>el.clientWidth+1){\n" +
+            "            el.__gaxH=1;\n" +
+            "            el.classList.add('gax-hscroll');\n" +
+            "            el.style.setProperty('overflow-x','auto');\n" +
+            "            el.style.setProperty('-webkit-overflow-scrolling','touch');\n" +
+            "            try{\n" +
+            "              var probe2=el.querySelector('button')||el.firstElementChild;\n" +
+            "              if(probe2){\n" +
+            "                var t2=probe2.firstElementChild||probe2;\n" +
+            "                var br2=getComputedStyle(t2).borderRadius||'';\n" +
+            "                if(br2.indexOf('%')>-1||(parseFloat(br2)||0)>=24){el.classList.add('gax-round');}\n" +
+            "              }\n" +
+            "            }catch(e4){}\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }catch(e){}\n" +
+            "    }\n" +
+            "    function canScrollUp(){\n" +
+            "      try{\n" +
+            "        if((window.scrollY||document.documentElement.scrollTop||0)>1){return true;}\n" +
+            "        for(var i=0;i<scrollers.length;i++){\n" +
+            "          var n=scrollers[i];\n" +
+            "          if(n&&n.parentNode&&n.scrollTop>1&&n.scrollHeight>n.clientHeight+1){return true;}\n" +
+            "        }\n" +
+            "      }catch(e){}\n" +
+            "      return false;\n" +
+            "    }\n" +
+            "    var lastState=-1;\n" +
+            "    var queued=false;\n" +
+            "    function report(){\n" +
+            "      if(queued){return;}\n" +
+            "      queued=true;\n" +
+            "      var run=function(){\n" +
+            "        queued=false;\n" +
+            "        try{\n" +
+            "          var up=canScrollUp()?1:0;\n" +
+            "          if(up!==lastState){lastState=up;if(window.AndroidScroll){window.AndroidScroll.setCanScrollUp(up);}}\n" +
+            "        }catch(e){}\n" +
+            "      };\n" +
+            "      if(window.requestAnimationFrame){window.requestAnimationFrame(run);}else{setTimeout(run,32);}\n" +
+            "    }\n" +
+            "    fixLayout();fixHScroll();collectScrollers();report();\n" +
+            "    try{new MutationObserver(fixLayout).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}\n" +
+            "    window.addEventListener('scroll',report,true);\n" +
+            "    window.addEventListener('resize',function(){fixLayout();fixHScroll();collectScrollers();report();});\n" +
+            "    window.addEventListener('load',function(){fixHScroll();collectScrollers();report();});\n" +
+            "    setInterval(function(){fixLayout();fixHScroll();collectScrollers();report();},2000);\n" +
+            "    try{\n" +
+            "      var probe=document.createElement('div');\n" +
+            "      probe.style.cssText='position:fixed!important;left:-9999px!important;top:0!important;visibility:hidden;font-size:100px;line-height:normal;white-space:nowrap;width:auto!important;max-width:none!important;padding:0!important;margin:0!important;border:0!important;';\n" +
+            "      probe.textContent='gax';\n" +
+            "      (document.body||document.documentElement).appendChild(probe);\n" +
+            "      setInterval(function(){\n" +
+            "        try{\n" +
+            "          var h=probe.getBoundingClientRect().height;\n" +
+            "          if(h>85&&window.AndroidScroll&&window.AndroidScroll.requestTextZoomFix){window.AndroidScroll.requestTextZoomFix();}\n" +
+            "        }catch(e5){}\n" +
+            "      },500);\n" +
+            "    }catch(e){}\n" +
             "  }catch(e){}\n" +
             "})();";
 
+    // Bridge used by LAYOUT_FIX_JS to tell us whether the page can still
+    // scroll up, and whether the page detected that the WebView reset the
+    // text size (item 4 in the LAYOUT_FIX_JS comment). @JavascriptInterface
+    // methods run on the WebView thread, so hop to the UI thread before
+    // touching SwipeRefreshLayout or WebSettings.
+    private final Object scrollBridge = new Object() {
+        @JavascriptInterface
+        public void setCanScrollUp(final int canScrollUp) {
+            runOnUiThread(() -> {
+                if (destroyed || swipeRefresh == null) return;
+                boolean scrolledDown = canScrollUp == 1;
+                if (pageScrolledDown == scrolledDown) return;
+                pageScrolledDown = scrolledDown;
+                // Only allow pull-to-refresh when there is nothing above.
+                // Otherwise leave the gesture to the page so the chat can
+                // scroll freely up and down.
+                swipeRefresh.setEnabled(!scrolledDown);
+            });
+        }
+
+        @JavascriptInterface
+        public void requestTextZoomFix() {
+            runOnUiThread(() -> applyTextZoom());
+        }
+    };
+
     private final List<File> capturedFiles = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // Periodically re-asserts the user's text size (see onResume). Body only
+    // touches `handler` when running, so declaration order is irrelevant.
+    private final Runnable textZoomKeepAlive = new Runnable() {
+        @Override public void run() {
+            if (destroyed || webView == null) return;
+            applyTextZoom();
+            handler.postDelayed(this, 1000);
+        }
+    };
     private final Runnable revealPage = () -> loadingSplash.setVisibility(View.GONE);
 
     private final ActivityResultLauncher<Intent> filePicker = registerForActivityResult(
@@ -129,15 +286,15 @@ public class MainActivity extends AppCompatActivity {
         configureWebView();
         swipeRefresh.setColorSchemeResources(R.color.gemini_accent);
         swipeRefresh.setDistanceToTriggerSync(350);
-        // FIX for bug 2: scroll stuck when drag up then cannot drag down
-        // Only allow pull-to-refresh when truly at top
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> {
-            return webView.getScrollY() > 0 || webView.canScrollVertically(-1);
-        });
-        webView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-            // Disable SwipeRefresh when not at top to prevent scroll conflict
-            swipeRefresh.setEnabled(scrollY == 0);
-        });
+        // Scroll fix: Gemini scrolls an inner div (the chat history), not the
+        // WebView itself, so webView.getScrollY()/canScrollVertically() always
+        // look like "top" and SwipeRefreshLayout steals every downward drag,
+        // leaving the chat impossible to scroll. The page now reports its real
+        // scroll position through the AndroidScroll JS bridge
+        // (pageScrolledDown), and pull-to-refresh is only allowed when
+        // nothing is above.
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
+                pageScrolledDown || webView.getScrollY() > 0 || webView.canScrollVertically(-1));
         swipeRefresh.setOnRefreshListener(this::reloadPage);
         findViewById(R.id.retry_button).setOnClickListener(view -> reloadPage());
         findViewById(R.id.browser_button).setOnClickListener(view -> openBrowser(UrlPolicy.HOME_URL));
@@ -190,6 +347,11 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             webView.setNestedScrollingEnabled(true);
         }
+        // Pin the scale to exactly 100% so the page renders at device width
+        // and cannot zoom-shift content off the left edge at 50% text size.
+        webView.setInitialScale(100);
+        // Scroll-state bridge for the injected layout fix (see scrollBridge).
+        webView.addJavascriptInterface(scrollBridge, "AndroidScroll");
         webView.setBackgroundColor(ContextCompat.getColor(this, R.color.gemini_background));
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -213,6 +375,12 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 pageFailed = false;
+                // New navigation (including the login redirect back from
+                // accounts.google.com): re-assert the user's text size.
+                applyTextZoom();
+                // A new page starts at the top until JS proves otherwise.
+                pageScrolledDown = false;
+                swipeRefresh.setEnabled(true);
                 errorPanel.setVisibility(View.GONE);
                 progressBar.setProgress(0);
                 progressBar.setVisibility(View.VISIBLE);
@@ -220,11 +388,13 @@ public class MainActivity extends AppCompatActivity {
 
             @Override public void onPageCommitVisible(WebView view, String url) {
                 revealLoadingPage();
+                applyTextZoom();
                 injectLayoutFix();
             }
 
             @Override public void onPageFinished(WebView view, String url) {
                 finishLoading();
+                applyTextZoom();
                 injectLayoutFix();
                 handler.postDelayed(() -> injectLayoutFix(), 500);
                 handler.postDelayed(() -> injectLayoutFix(), 1500);
@@ -249,6 +419,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onProgressChanged(WebView view, int progress) {
+                applyTextZoom();
                 progressBar.setProgress(progress);
                 progressBar.setVisibility(progress < 100 && !pageFailed ? View.VISIBLE : View.GONE);
                 if (progress == 100) {
@@ -286,6 +457,17 @@ public class MainActivity extends AppCompatActivity {
         if (webView == null || destroyed) return;
         try {
             webView.evaluateJavascript(LAYOUT_FIX_JS, null);
+        } catch (Exception ignored) {}
+    }
+
+    // Re-assert the user's text size on every page event. Cross-origin
+    // navigations (the Google login redirect chain) can reset the WebView's
+    // textZoom back to 100%, so the page showed Gemini's default size right
+    // after signing in. Idempotent and cheap; touches nothing else.
+    private void applyTextZoom() {
+        if (webView == null || destroyed) return;
+        try {
+            webView.getSettings().setTextZoom(WEB_TEXT_ZOOM);
         } catch (Exception ignored) {}
     }
 
@@ -512,9 +694,18 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
+        // Keep-alive: re-assert the user's text size once per second while
+        // resumed. Some WebView builds reset textZoom *after* the page
+        // callbacks have already fired (late renderer init following the
+        // login redirect chain), which showed Gemini at 100% right after
+        // signing in. setTextZoom is change-detected inside the WebView, so
+        // this is a no-op unless something actually reset it.
+        handler.removeCallbacks(textZoomKeepAlive);
+        handler.postDelayed(textZoomKeepAlive, 1000);
     }
 
     @Override protected void onPause() {
+        handler.removeCallbacks(textZoomKeepAlive);
         if (webView != null) webView.onPause();
         CookieManager.getInstance().flush();
         super.onPause();
