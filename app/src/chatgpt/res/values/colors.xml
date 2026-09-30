@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ChatGPT palette (light). Same color names as src/main so the shared
+     layout, themes and splash pick these values up in the chatgpt flavor. -->
+<resources>
+    <color name="gemini_background">#FFFFFF</color>
+    <color name="gemini_on_background">#0D0D0D</color>
+    <color name="gemini_accent">#10A37F</color>
+    <color name="gemini_accent_dark">#0E8C6B</color>
+</resources>

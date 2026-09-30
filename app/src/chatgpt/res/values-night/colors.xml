@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ChatGPT palette (dark). Mirrors the src/main values-night override so
+     dark mode in the chatgpt flavor is ChatGPT-green, not Gemini-blue. -->
+<resources>
+    <color name="gemini_background">#212121</color>
+    <color name="gemini_on_background">#ECECEC</color>
+    <color name="gemini_accent">#19C37D</color>
+    <color name="gemini_accent_dark">#14B374</color>
+</resources>
