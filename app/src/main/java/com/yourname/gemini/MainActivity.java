@@ -71,7 +71,11 @@ public class MainActivity extends AppCompatActivity {
     private File cameraOutputFile;
     // User-requested text size: 50%. The injected LAYOUT_FIX_JS clamps the page
     // to the viewport width and kills horizontal scroll so the smaller text
-    // never drifts off the left edge of the screen.
+    // never drifts off the left edge of the screen. NOTE: the WebView resets
+    // textZoom back to 100% when navigating across origins (the Google login
+    // redirect chain gemini.google.com -> accounts.google.com ->
+    // gemini.google.com), which showed Gemini at its default size right after
+    // signing in. applyTextZoom() re-asserts this value on every page event.
     private static final int WEB_TEXT_ZOOM = 50;
 
     // Injected page fix:
@@ -337,6 +341,9 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 pageFailed = false;
+                // New navigation (including the login redirect back from
+                // accounts.google.com): re-assert the user's text size.
+                applyTextZoom();
                 // A new page starts at the top until JS proves otherwise.
                 pageScrolledDown = false;
                 swipeRefresh.setEnabled(true);
@@ -347,11 +354,13 @@ public class MainActivity extends AppCompatActivity {
 
             @Override public void onPageCommitVisible(WebView view, String url) {
                 revealLoadingPage();
+                applyTextZoom();
                 injectLayoutFix();
             }
 
             @Override public void onPageFinished(WebView view, String url) {
                 finishLoading();
+                applyTextZoom();
                 injectLayoutFix();
                 handler.postDelayed(() -> injectLayoutFix(), 500);
                 handler.postDelayed(() -> injectLayoutFix(), 1500);
@@ -376,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onProgressChanged(WebView view, int progress) {
+                applyTextZoom();
                 progressBar.setProgress(progress);
                 progressBar.setVisibility(progress < 100 && !pageFailed ? View.VISIBLE : View.GONE);
                 if (progress == 100) {
@@ -413,6 +423,17 @@ public class MainActivity extends AppCompatActivity {
         if (webView == null || destroyed) return;
         try {
             webView.evaluateJavascript(LAYOUT_FIX_JS, null);
+        } catch (Exception ignored) {}
+    }
+
+    // Re-assert the user's text size on every page event. Cross-origin
+    // navigations (the Google login redirect chain) can reset the WebView's
+    // textZoom back to 100%, so the page showed Gemini's default size right
+    // after signing in. Idempotent and cheap; touches nothing else.
+    private void applyTextZoom() {
+        if (webView == null || destroyed) return;
+        try {
+            webView.getSettings().setTextZoom(WEB_TEXT_ZOOM);
         } catch (Exception ignored) {}
     }
 
