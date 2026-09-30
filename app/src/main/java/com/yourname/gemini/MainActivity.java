@@ -90,6 +90,11 @@ public class MainActivity extends AppCompatActivity {
     //     is turned into a touch scroller and freed from the max-width clamp.
     //     Elements whose content fits are never touched, so nothing outside
     //     that row is affected.
+    //  4. Text-size watchdog: a hidden 100px-font probe measures its rendered
+    //     line height every 500ms. If the WebView reset textZoom (text back at
+    //     ~100%, e.g. after the Google login redirect) the probe reports it
+    //     through AndroidScroll.requestTextZoomFix() and the app re-applies
+    //     the user's size immediately, whatever the reset timing was.
     private static final String LAYOUT_FIX_JS =
             "(function(){\n" +
             "  try{\n" +
@@ -192,12 +197,26 @@ public class MainActivity extends AppCompatActivity {
             "    window.addEventListener('resize',function(){fixLayout();fixHScroll();collectScrollers();report();});\n" +
             "    window.addEventListener('load',function(){fixHScroll();collectScrollers();report();});\n" +
             "    setInterval(function(){fixLayout();fixHScroll();collectScrollers();report();},2000);\n" +
+            "    try{\n" +
+            "      var probe=document.createElement('div');\n" +
+            "      probe.style.cssText='position:fixed!important;left:-9999px!important;top:0!important;visibility:hidden;font-size:100px;line-height:normal;white-space:nowrap;width:auto!important;max-width:none!important;padding:0!important;margin:0!important;border:0!important;';\n" +
+            "      probe.textContent='gax';\n" +
+            "      (document.body||document.documentElement).appendChild(probe);\n" +
+            "      setInterval(function(){\n" +
+            "        try{\n" +
+            "          var h=probe.getBoundingClientRect().height;\n" +
+            "          if(h>85&&window.AndroidScroll&&window.AndroidScroll.requestTextZoomFix){window.AndroidScroll.requestTextZoomFix();}\n" +
+            "        }catch(e5){}\n" +
+            "      },500);\n" +
+            "    }catch(e){}\n" +
             "  }catch(e){}\n" +
             "})();";
 
     // Bridge used by LAYOUT_FIX_JS to tell us whether the page can still
-    // scroll up. @JavascriptInterface methods run on the WebView thread, so
-    // hop to the UI thread before touching SwipeRefreshLayout.
+    // scroll up, and whether the page detected that the WebView reset the
+    // text size (item 4 in the LAYOUT_FIX_JS comment). @JavascriptInterface
+    // methods run on the WebView thread, so hop to the UI thread before
+    // touching SwipeRefreshLayout or WebSettings.
     private final Object scrollBridge = new Object() {
         @JavascriptInterface
         public void setCanScrollUp(final int canScrollUp) {
@@ -211,6 +230,11 @@ public class MainActivity extends AppCompatActivity {
                 // scroll freely up and down.
                 swipeRefresh.setEnabled(!scrolledDown);
             });
+        }
+
+        @JavascriptInterface
+        public void requestTextZoomFix() {
+            runOnUiThread(() -> applyTextZoom());
         }
     };
 
