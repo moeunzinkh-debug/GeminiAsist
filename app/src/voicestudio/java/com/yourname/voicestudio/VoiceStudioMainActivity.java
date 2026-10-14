@@ -19,9 +19,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -40,6 +42,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.splashscreen.SplashScreen;
@@ -90,6 +93,18 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingWebPermission;
     private final BlobDownloadSaver blobSaver = new BlobDownloadSaver(this);
+
+    // Renderer-death bookkeeping. Rebuilding the WebView after a renderer dies
+    // is the right thing to do, but a device that keeps killing the renderer
+    // must not be pushed into an endless rebuild → crash → rebuild loop, so
+    // only a few rebuilds are allowed per time window.
+    private static final int MAX_RENDERER_DEATHS = 3;
+    private static final long RENDERER_DEATH_WINDOW_MS = 30_000L;
+    private int rendererDeaths;
+    private long firstRendererDeathAt;
+    // The current WebView's renderer is gone, so it can never paint again:
+    // "Try again" has to build a new one instead of calling reload().
+    private boolean rendererGone;
 
     // User-requested text size: 60%. The injected LAYOUT_FIX_JS clamps the page
     // to the viewport width and kills horizontal scroll so the smaller text
@@ -386,6 +401,9 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean begin(String id, String name, String mimeType) {
             if (!callerAllowed()) return false;
+            // Android 7-9: ask for storage the first time the user exports
+            // something, not while the app is still starting up.
+            ensureLegacyStoragePermission();
             return blobSaver.open(name, mimeType, mayWritePublicDownloads());
         }
 
@@ -471,12 +489,10 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {
-                if (webView.canGoBack()) webView.goBack();
+                if (webView != null && webView.canGoBack()) webView.goBack();
                 else finish();
             }
         });
-
-        requestLegacyStoragePermission();
 
         handler.postDelayed(revealPage, 15000);
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
@@ -597,6 +613,47 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
                                            android.net.http.SslError error) {
                 sslHandler.cancel();
                 if (java.util.Objects.equals(error.getUrl(), view.getUrl())) showPageError();
+            }
+
+            /**
+             * The renderer died (a Gradio page is heavy, and a phone with
+             * little free memory kills the renderer without warning).
+             *
+             * <p>Returning {@code false} — the default — tells Android to kill
+             * the whole app process, which is what made Voice Studio look like
+             * it "opened and immediately jumped back out": the window appeared,
+             * the renderer died, and the process was torn down with no dialog
+             * and no error. Handling it keeps the app alive: the WebView is
+             * rebuilt and the Space loads again.
+             *
+             * <p>Only exists on Android 8+ (API 26). On older devices the
+             * method is simply never called.
+             */
+            @Override
+            @RequiresApi(Build.VERSION_CODES.O)
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                if (destroyed) return true;
+                if (view != null && view != webView) return true;
+                rendererGone = true;
+                handler.removeCallbacksAndMessages(null);
+                // Too many deaths in a row: stop rebuilding and let the user
+                // decide — the error panel's "Try again" resets the counter.
+                long now = System.currentTimeMillis();
+                if (now - firstRendererDeathAt > RENDERER_DEATH_WINDOW_MS) {
+                    firstRendererDeathAt = now;
+                    rendererDeaths = 0;
+                }
+                if (++rendererDeaths > MAX_RENDERER_DEATHS) {
+                    showPageError();
+                    return true;
+                }
+                pageFailed = false;
+                errorPanel.setVisibility(View.GONE);
+                currentPageUrl = null;
+                pageScrolledDown = false;
+                recreateWebView();
+                if (webView != null) webView.loadUrl(VoiceStudioUrlPolicy.HOME_URL);
+                return true;
             }
         });
 
@@ -866,14 +923,93 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
         if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) return;
         if (permissionPromptActive) return;
         permissionPromptActive = true;
-        legacyStoragePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        try {
+            legacyStoragePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        } catch (RuntimeException | LinkageError e) {
+            // A storage prompt is a convenience, never a reason to fail an
+            // export (BlobDownloadSaver falls back to the app's own folder).
+            permissionPromptActive = false;
+        }
+    }
+
+    /**
+     * Called from the {@code VoiceDownload} bridge (WebView thread) on Android
+     * 7-9, where writing to the public Downloads folder needs a runtime
+     * permission. Deliberately not asked during start-up: a permission dialog
+     * over the splash screen looks like the app leaving, and it blocked the
+     * microphone and file pickers while it was up. The very first export can
+     * still land in the app's own folder — the toast reports where.
+     */
+    private void ensureLegacyStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return;
+        if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) return;
+        runOnUiThread(this::requestLegacyStoragePermission);
     }
 
     private void reloadPage() {
         pageFailed = false;
         errorPanel.setVisibility(View.GONE);
-        if (VoiceStudioUrlPolicy.isInternal(webView.getUrl())) webView.reload();
+        rendererDeaths = 0;
+        firstRendererDeathAt = 0L;
+        if (webView == null) return;
+        if (rendererGone) {
+            // A WebView whose renderer died cannot load anything: replace it.
+            recreateWebView();
+        }
+        if (webView == null) return;
+        if (!rendererGone && VoiceStudioUrlPolicy.isInternal(webView.getUrl())) webView.reload();
         else webView.loadUrl(VoiceStudioUrlPolicy.HOME_URL);
+    }
+
+    /**
+     * Replaces the current WebView with a fresh one in the same place in the
+     * layout. Used when the render process dies: a WebView whose renderer is
+     * gone can never paint again, but the app itself is still perfectly alive.
+     */
+    private void recreateWebView() {
+        WebView dead = webView;
+        ViewParent parent = dead == null ? null : dead.getParent();
+        if (!(parent instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) parent;
+        int index = group.indexOfChild(dead);
+        group.removeView(dead);
+        try {
+            dead.stopLoading();
+            dead.setWebChromeClient(null);
+            dead.setWebViewClient(null);
+            dead.destroy();
+        } catch (RuntimeException ignored) {
+            // The renderer is already gone; teardown errors do not matter here.
+        }
+        WebView fresh = new WebView(this);
+        fresh.setId(R.id.web_view);
+        fresh.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        group.addView(fresh, index >= 0 ? index : 0);
+        webView = fresh;
+        rendererGone = false;
+        configureWebView();
+        // Re-show the loading overlay so the user sees the page coming back
+        // instead of an empty white screen.
+        progressBar.setProgress(0);
+        progressBar.setVisibility(View.VISIBLE);
+        loadingSplash.setVisibility(View.VISIBLE);
+        handler.postDelayed(revealPage, 15000);
+    }
+
+    /** Tears the WebView down without ever throwing (see {@link #onDestroy()}). */
+    private void destroyWebView() {
+        if (webView == null) return;
+        try {
+            ViewParent parent = webView.getParent();
+            if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(webView);
+            webView.stopLoading();
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            webView.destroy();
+        } catch (RuntimeException ignored) {
+            // Never let teardown crash on the way out.
+        }
     }
 
     private void revealLoadingPage() {
@@ -893,19 +1029,34 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
         errorPanel.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * Full-screen. The decor view is not attached to the window yet while
+     * {@link #onCreate(Bundle)} is running, and on some Android versions
+     * {@link WindowInsetsControllerCompat} then resolves to a null controller
+     * and throws. Hiding the bars is cosmetic, so it waits until the view is
+     * really attached and never lets an exception escape.
+     */
     private void hideSystemBars() {
-        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        controller.hide(WindowInsetsCompat.Type.systemBars());
+        View decor = getWindow().getDecorView();
+        if (decor == null || !decor.isAttachedToWindow()) return;
+        try {
+            WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), decor);
+            controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+        } catch (RuntimeException ignored) {
+            // Losing full-screen is nothing next to losing the app.
+        }
     }
 
     @Override public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) hideSystemBars();
+        // Posted so the decor view is attached by the time the bars are hidden
+        // (onWindowFocusChanged can arrive before the first layout pass).
+        if (hasFocus) getWindow().getDecorView().post(this::hideSystemBars);
     }
 
     @Override protected void onSaveInstanceState(@NonNull Bundle outState) {
-        webView.saveState(outState);
+        if (webView != null) webView.saveState(outState);
         super.onSaveInstanceState(outState);
     }
 
@@ -938,11 +1089,7 @@ public class VoiceStudioMainActivity extends AppCompatActivity {
         cancelWebPermission();
         cancelFileSelection();
         blobSaver.abort();
-        ((ViewGroup) webView.getParent()).removeView(webView);
-        webView.stopLoading();
-        webView.setWebChromeClient(null);
-        webView.setWebViewClient(null);
-        webView.destroy();
+        destroyWebView();
         super.onDestroy();
     }
 }
