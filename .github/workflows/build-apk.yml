@@ -69,10 +69,10 @@ jobs:
             echo "GEMINI_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "GEMINI_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
-      # Two product flavors (gemini + chatgpt) mean there is no plain `debug`
-      # variant anymore: unit tests and lint run per flavor.
+      # Three product flavors (gemini + chatgpt + voicestudio) mean there is no
+      # plain `debug` variant anymore: unit tests and lint run per flavor.
       - name: Test and lint
-        run: ./gradlew --no-daemon :app:testGeminiDebugUnitTest :app:testChatgptDebugUnitTest :app:lintGeminiDebug :app:lintChatgptDebug
+        run: ./gradlew --no-daemon :app:testGeminiDebugUnitTest :app:testChatgptDebugUnitTest :app:testVoicestudioDebugUnitTest :app:lintGeminiDebug :app:lintChatgptDebug :app:lintVoicestudioDebug
       - name: Build debug and release APKs
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
       # A phone only installs an APK whose signature it can read, so print exactly
@@ -122,11 +122,12 @@ jobs:
           fi
       # Same bytes, honest file names: the release APK keeps an UNSIGNED marker so
       # nobody tries to sideload it by mistake. One set of names per flavor/tag:
-      # gemini-* (Gemini WebView tag) and chatgpt-* (Chatgpt WebView tag).
+      # gemini-* (Gemini WebView tag), chatgpt-* (Chatgpt WebView tag) and
+      # voicestudio-* (Voice Studio WebView tag).
       - name: Name the APKs after what they are
         run: |
           mkdir -p dist
-          for flavor in gemini chatgpt; do
+          for flavor in gemini chatgpt voicestudio; do
             debug_dir="app/build/outputs/apk/$flavor/debug"
             release_dir="app/build/outputs/apk/$flavor/release"
 
@@ -169,6 +170,20 @@ jobs:
           name: chatgpt-release-apk
           path: |
             dist/chatgpt-release-*.apk
+            dist/apk-signing-report.txt
+          if-no-files-found: error
+      - name: Upload Voice Studio debug APK (signed, installable)
+        uses: actions/upload-artifact@v7
+        with:
+          name: voicestudio-debug-apk
+          path: dist/voicestudio-debug-*.apk
+          if-no-files-found: error
+      - name: Upload Voice Studio release APK (unsigned unless signing secrets are set)
+        uses: actions/upload-artifact@v7
+        with:
+          name: voicestudio-release-apk
+          path: |
+            dist/voicestudio-release-*.apk
             dist/apk-signing-report.txt
           if-no-files-found: error
       - name: Remove signing key

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Voice Studio palette (dark). Mirrors the src/main values-night override so
+     dark mode in the voicestudio flavor is violet, not Gemini-blue. -->
+<resources>
+    <color name="gemini_background">#16121F</color>
+    <color name="gemini_on_background">#EDE9FF</color>
+    <color name="gemini_accent">#B49CFF</color>
+    <color name="gemini_accent_dark">#9A80F5</color>
+</resources>
