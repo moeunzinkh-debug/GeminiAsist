@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Voice Studio WebView tag: swap the Gemini launcher for the Voice Studio one.
+    src/main/AndroidManifest.xml is NOT modified; the manifest merger applies
+    this overlay only to the voicestudio flavor.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The studio never takes photos, so drop the camera declarations that
+         src/main ships for the Gemini tag. -->
+    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+    <uses-feature android:name="android.hardware.camera" tools:node="remove" />
+
+    <!-- Android 7-9 only: needed to drop exported MP3/SRT files into the public
+         Downloads folder. Android 10+ writes through MediaStore and needs no
+         storage permission at all. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application>
+        <!-- The Gemini activity ships from src/main for the gemini flavor but
+             must not be reachable from the Voice Studio app. -->
+        <activity
+            android:name="com.yourname.gemini.MainActivity"
+            tools:node="remove" />
+
+        <activity
+            android:name="com.yourname.voicestudio.VoiceStudioMainActivity"
+            android:exported="true"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

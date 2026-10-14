@@ -78,3 +78,64 @@ APK:
 
 - Gemini: `app/build/outputs/apk/gemini/debug/app-gemini-debug.apk`
 - ChatGPT: `app/build/outputs/apk/chatgpt/debug/app-chatgpt-debug.apk`
+- Voice Studio: `app/build/outputs/apk/voicestudio/debug/app-voicestudio-debug.apk`
+
+---
+
+# Voice Studio - Android WebView
+
+![Tag](https://img.shields.io/badge/Tag-Voice%20Studio%20WebView-6C4CF1) ![Platform](https://img.shields.io/badge/Platform-Android-green) ![Language](https://img.shields.io/badge/Language-Java%2017-orange)
+
+កម្មវិធី WebView សម្រាប់បើក **https://takumi0002-tts-kh.hf.space/** (SRT Smart Voice Studio v3) ដោយគ្មាន address bar ពេញអេក្រង់ — flavor ថ្មីក្នុងគម្រោងដដែល។
+
+> **Tag:** `Voice Studio WebView`
+
+## វាអាចធ្វើអ្វីបាន?
+
+- កែ SRT និងផលិតសំឡេងខ្មែរ (Edge TTS: km-KH-PisethNeural / km-KH-SreymomNeural) ក្នុង App ដោយផ្ទាល់
+- បើកឯកសារ **.srt / .txt** ពីទូរស័ព្ទចូល Editor
+- **ទាញយក MP3 / SRT / JSON ចូល folder Downloads** របស់ទូរស័ព្ទ (មើលឃើញក្នុង Files/Downloads)
+- ស្តាប់សំឡេងសាកល្បងក្នុង App (headset/ទូរស័ព្ទ)
+- Microphone (បើទំព័រស្នើសុំ) និង Upload file
+
+## មុខងារសំខាន់ៗ
+
+- **អក្សរ 60%** - អត្ថបទតូច 60% តែគ្រប់ផ្ទាំង ដោយមិនលិច/កាត់ផ្នែកខាងឆ្វេង
+- **ទាញយកបានពិត** - link ធម្មតាប្រើ DownloadManager, ឯ blob: របស់ Gradio ត្រូវបានបញ្ជូនមក App បន្ទាប់មករក្សាទុកក្នុង **Downloads**
+- **Upload .srt / .txt** - ជ្រើសឯកសារច្រើនបាន, ចាក់សោរតែ origin ខាងក្នុង App
+- **Scroll រលូន** - ជួរ SRT វែងៗ ដែលធ្លាប់ជាប់ អូសបានធម្មតា
+- **Pull-to-refresh** - អូសចុះដើម្បី reload (តែពេលនៅកំពូលទំព័រ)
+- **Back Navigation** - ត្រឡប់ប្រវត្តិ WebView
+- **External Links** - link ក្រៅ Space បើកក្នុង Browser
+- **Dark Theme** - តាម system light/dark (ពណ៌ violet)
+- **Error Handling** - ប៊ូតុង Try again / Open in browser
+
+## Flavor បី — source តែមួយ, APK បី
+
+| Flavor | Tag | applicationId | កូដ |
+|---|---|---|---|
+| `gemini` | `Gemini WebView` | `com.yourname.gemini` | `src/main` (ដូចមុន 100%) |
+| `chatgpt` | `Chatgpt WebView` | `com.yourname.chatgpt` | `src/chatgpt` + `src/main` |
+| `voicestudio` | `Voice Studio WebView` | `com.yourname.voicestudio` | `src/voicestudio` + `src/main` |
+
+កូដ Gemini ក្នុង `src/main` **មិនប៉ះ** — គ្រប់ការផ្លាស់ប្តូររបស់ Voice Studio នៅក្នុង `src/voicestudio` (source set ថ្មី):
+
+- **Launcher ផ្សេង** - manifest overlay លែងបង្ហាញ icon Gemini ក្នុង build Voice Studio
+- **ឈ្មោះ/ពណ៌/icon** - resource override (app name "Voice Studio", ពណ៌ violet #6C4CF1, icon មីក្រូ)
+- **URL Policy ថ្មី** - `takumi0002-tts-kh.hf.space` តែមួយ (https, port 443); ក្រៅនេះបើកក្នុង Browser
+- **Download Handler ថ្មី** - `BlobDownloadSaver` + `VoiceDownload` bridge សម្រាប់ MP3/SRT ដែល Gradio បង្កើតជា `blob:`; Android 10+ ប្រើ MediaStore, Android 7-9 សុំ permission ដើម្បីសរសេរចូល Downloads
+- **ដំឡើងដាច់ដោយឡែក** - applicationId ខុសគ្នា → app ទាំងបីនៅលើទូរស័ព្ទតែមួយ
+
+## Build
+
+```bash
+./gradlew :app:assembleGeminiDebug        # tag Gemini WebView (ដូចមុន)
+./gradlew :app:assembleChatgptDebug       # tag Chatgpt WebView
+./gradlew :app:assembleVoicestudioDebug   # tag Voice Studio WebView
+```
+
+APK:
+
+- Gemini: `app/build/outputs/apk/gemini/debug/app-gemini-debug.apk`
+- ChatGPT: `app/build/outputs/apk/chatgpt/debug/app-chatgpt-debug.apk`
+- Voice Studio: `app/build/outputs/apk/voicestudio/debug/app-voicestudio-debug.apk`
